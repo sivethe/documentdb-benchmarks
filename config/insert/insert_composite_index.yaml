@@ -1,0 +1,11 @@
+# Insert Benchmark — Composite Index on category + timestamp
+#
+# Measures insert throughput with a compound ascending index.
+# Inherits shared settings from insert_base.yaml.
+
+inherits: insert_base.yaml
+
+benchmark_name: insert_composite_index
+benchmark_module: benchmarks.insert.insert_composite_index_benchmark
+collection: insert_test_composite_idx
+run_label: composite-index

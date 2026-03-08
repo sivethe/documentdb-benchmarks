@@ -1,0 +1,39 @@
+[project]
+name = "documentdb-benchmarks"
+version = "0.1.0"
+description = "Benchmark framework for MongoDB-compatible databases (MongoDB, Atlas, Azure DocumentDB, AWS DocumentDB)"
+readme = "README.md"
+requires-python = ">=3.9"
+
+dependencies = [
+    "locust>=2.20",
+    "pymongo>=4.6",
+    "pyyaml>=6.0",
+    "gevent>=23.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "black>=23.0",
+    "ruff>=0.1",
+]
+
+[project.scripts]
+bench-run = "benchmark_runner.runner:main"
+bench-analyze = "benchmark_analyzer.analyzer:main"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["benchmark_runner*", "benchmark_analyzer*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.black]
+line-length = 100
+target-version = ["py39"]

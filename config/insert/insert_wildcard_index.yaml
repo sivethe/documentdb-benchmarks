@@ -1,0 +1,11 @@
+# Insert Benchmark — Wildcard Index ($**)
+#
+# Measures insert throughput with a root wildcard index on all fields.
+# Inherits shared settings from insert_base.yaml.
+
+inherits: insert_base.yaml
+
+benchmark_name: insert_wildcard_index
+benchmark_module: benchmarks.insert.insert_wildcard_index_benchmark
+collection: insert_test_wildcard_idx
+run_label: wildcard-index

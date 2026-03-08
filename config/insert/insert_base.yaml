@@ -1,0 +1,27 @@
+# Insert Benchmark — Base Configuration
+#
+# Shared settings inherited by all insert benchmark variants.
+# Do NOT run this config directly — use one of the variant configs
+# (e.g. insert_no_index.yaml, insert_single_path_index.yaml, etc.).
+
+# MongoDB connection (defaults to MONGODB_URL env var; override here or via --mongodb-url)
+# mongodb_url: "mongodb://localhost:27017"
+database: benchmark_db
+
+# Locust concurrency settings
+users: 10
+spawn_rate: 5
+run_time: "60s"
+
+# Output
+output_dir: results/insert
+
+# Workload-specific parameters
+workload_params:
+  document_size: 256      # bytes per document
+  batch_size: 100         # documents per insert_many
+  drop_on_start: true     # clean collection before run
+  sharded: false          # set to true to shard the collection
+  shard_key: "_id"        # shard key path: "_id" or "category"
+  insert_one_weight: 0    # task weight for insert_one (0 to disable)
+  insert_many_weight: 1   # task weight for insert_many (0 to disable)

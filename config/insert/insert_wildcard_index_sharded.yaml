@@ -1,0 +1,11 @@
+# Insert Benchmark — Wildcard Index (Sharded)
+#
+# Sharded variant: inherits from insert_wildcard_index.yaml and enables sharding.
+
+inherits: insert_wildcard_index.yaml
+
+benchmark_name: insert_wildcard_index_sharded
+run_label: wildcard-index-sharded
+
+workload_params:
+  sharded: true

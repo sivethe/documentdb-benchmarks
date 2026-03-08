@@ -1,0 +1,340 @@
+"""
+Base benchmark classes for MongoDB-compatible database benchmarks.
+
+Provides a MongoUser base class that handles:
+- MongoDB connection lifecycle (connect on start, close on stop)
+- Access to the configured database and collection
+- Custom metric tracking via Locust events
+- Workload parameter access from config
+- Thread-safe collection seeding across concurrent users
+"""
+
+import logging
+import threading
+import time
+from typing import Any, Callable, Dict, Optional
+
+from gevent import GreenletExit
+import pymongo
+from locust import User, between
+
+logger = logging.getLogger(__name__)
+
+
+class MongoUser(User):
+    """
+    Base Locust User for MongoDB benchmarks.
+
+    Subclass this and define @task methods to create a benchmark.
+    The MongoDB client, database, and collection are available as
+    instance attributes after on_start().
+
+    Configuration is passed via the 'benchmark_config' attribute on
+    the Locust environment (set by the runner).
+
+    Example:
+        class MyBenchmark(MongoUser):
+            wait_time = between(0, 0.1)
+
+            @task
+            def my_operation(self):
+                self.collection.insert_one({"key": "value"})
+    """
+
+    # Subclasses can override; default is minimal wait
+    wait_time = between(0, 0.01)
+
+    # Abstract: no host needed (we use mongodb_url from config)
+    abstract = True
+
+    # Class-level lock for coordinating seed operations across users.
+    # Each concrete subclass gets its own lock via __init_subclass__.
+    _seed_lock: threading.Lock
+    _seed_done: bool = False
+
+    def __init_subclass__(cls, **kwargs):
+        """Give each benchmark subclass its own seed lock and flag."""
+        super().__init_subclass__(**kwargs)
+        cls._seed_lock = threading.Lock()
+        cls._seed_done = False
+        cls._sharding_error: Optional[str] = None
+
+    def __init__(self, environment):
+        super().__init__(environment)
+        self.config = getattr(environment, "benchmark_config", None)
+        self.client: Optional[pymongo.MongoClient] = None
+        self.db = None
+        self.collection = None
+        self._workload_params: Dict[str, Any] = {}
+
+    def on_start(self):
+        """Connect to MongoDB when the user starts."""
+        if self.config:
+            mongodb_url = self.config.mongodb_url
+            database = self.config.database
+            collection = self.config.collection
+            self._workload_params = self.config.workload_params
+        else:
+            # Fallback for standalone locust invocation
+            mongodb_url = self.host or "mongodb://localhost:27017"
+            database = "benchmark_db"
+            collection = "benchmark_collection"
+
+        self.client = pymongo.MongoClient(mongodb_url)
+        self.db = self.client[database]
+        self.collection = self.db[collection]
+
+    def on_stop(self):
+        """Close MongoDB connection when the user stops."""
+        if self.client:
+            self.client.close()
+
+    @property
+    def workload_params(self) -> Dict[str, Any]:
+        """Access workload-specific parameters from config."""
+        return self._workload_params
+
+    def get_param(self, key: str, default: Any = None) -> Any:
+        """Get a workload parameter by key with optional default."""
+        return self._workload_params.get(key, default)
+
+    def seed_collection(
+        self,
+        seed_func: Callable[[], None],
+        drop: bool = True,
+    ) -> None:
+        """Run a seed function exactly once across all concurrent users.
+
+        Uses a class-level lock so only the first user to call this
+        method performs the drop + seed. All other users block until
+        seeding is finished, then proceed directly.
+
+        If workload_params include ``sharded: true``, the collection is
+        sharded using the configured ``shard_key`` (default ``"_id"``).
+        Supported shard keys: ``"_id"`` and ``"category"``.
+
+        Args:
+            seed_func: Callable that performs the actual inserts and
+                       index creation. It should use ``ordered=False``
+                       on ``insert_many`` calls for safety.
+            drop: Whether to drop the collection before seeding.
+        """
+        with self.__class__._seed_lock:
+            if self.__class__._seed_done:
+                return
+
+            if drop:
+                try:
+                    self.collection.drop()
+                    logger.info("Dropped collection %s", self.collection.name)
+                except Exception:
+                    pass
+
+            # Configure sharding if requested
+            self._setup_sharding()
+
+            seed_func()
+            self.__class__._seed_done = True
+            logger.info(
+                "Seeding complete for %s (%s docs)",
+                self.collection.name,
+                self.collection.estimated_document_count(),
+            )
+
+    def _setup_sharding(self) -> None:
+        """Configure collection sharding if enabled in workload_params.
+
+        Reads ``sharded`` (bool) and ``shard_key`` (str) from workload
+        params. When ``sharded`` is true, enables sharding on the
+        database and shards the collection using the specified key.
+
+        Supported shard keys:
+            - ``"_id"``  — hashed sharding on the default _id field
+            - ``"category"`` — hashed sharding on the category field
+                (creates a supporting index automatically)
+
+        This is a no-op if ``sharded`` is false or not set, or if the
+        database does not support sharding (e.g. standalone mongod).
+        """
+        sharded = self.get_param("sharded", False)
+        if not sharded:
+            return
+
+        shard_key_field = self.get_param("shard_key", "_id")
+        allowed_keys = {"_id", "category"}
+        if shard_key_field not in allowed_keys:
+            logger.warning(
+                "Unsupported shard_key '%s'. Must be one of %s. Skipping sharding.",
+                shard_key_field,
+                allowed_keys,
+            )
+            return
+
+        db_name = self.db.name
+        collection_name = self.collection.name
+        namespace = f"{db_name}.{collection_name}"
+
+        try:
+            # Enable sharding on the database (idempotent on most engines)
+            self.client.admin.command("enableSharding", db_name)
+            logger.info("Enabled sharding on database: %s", db_name)
+        except Exception as exc:
+            # Some engines (e.g. DocumentDB) auto-enable or don't need this
+            logger.debug("enableSharding skipped or not needed: %s", exc)
+
+        try:
+            # Create an index on the shard key if it's not _id
+            if shard_key_field != "_id":
+                self.collection.create_index([(shard_key_field, "hashed")])
+                logger.info("Created hashed index on '%s'", shard_key_field)
+
+            # Shard the collection
+            self.client.admin.command(
+                "shardCollection",
+                namespace,
+                key={shard_key_field: "hashed"},
+            )
+            logger.info(
+                "Sharded collection %s on key {%s: 'hashed'}",
+                namespace,
+                shard_key_field,
+            )
+        except Exception as exc:
+            logger.error("Failed to shard collection %s: %s", namespace, exc)
+            self.__class__._sharding_error = f"shardCollection failed for {namespace}: {exc}"
+
+    def fail_if_sharding_error(self, operation_name: str) -> bool:
+        """Check whether sharding setup failed and report a task failure if so.
+
+        Call this at the top of every ``@task`` method in benchmarks
+        that require sharding. When a previous ``shardCollection``
+        command failed, the method fires a Locust failure event and
+        returns ``True`` so the caller can bail out early.
+
+        Args:
+            operation_name: The Locust stat name for the task.
+
+        Returns:
+            ``True`` if sharding failed (task was recorded as a failure),
+            ``False`` otherwise (proceed normally).
+        """
+        error = self.__class__._sharding_error
+        if error is not None:
+            self.environment.events.request.fire(
+                request_type="mongodb",
+                name=operation_name,
+                response_time=0,
+                response_length=0,
+                exception=RuntimeError(error),
+                context={},
+            )
+            return True
+        return False
+
+    def track_custom_metric(
+        self, metric_name: str, value: float, request_type: str = "custom", response_length: int = 0
+    ):
+        """
+        Report a custom metric to Locust's statistics.
+
+        This integrates with Locust's built-in request tracking so
+        custom metrics appear in the standard report alongside
+        automatically tracked request timings.
+
+        Args:
+            metric_name: Name for the metric (appears in stats table)
+            value: Response time in milliseconds
+            request_type: Category for the metric (default: "custom")
+            response_length: Response size in bytes (default: 0)
+        """
+        self.environment.events.request.fire(
+            request_type=request_type,
+            name=metric_name,
+            response_time=value,
+            response_length=response_length,
+            exception=None,
+            context={},
+        )
+
+    def track_custom_failure(
+        self,
+        metric_name: str,
+        exception: Exception,
+        response_time: float = 0,
+        request_type: str = "custom",
+    ):
+        """
+        Report a custom metric failure to Locust's statistics.
+
+        Args:
+            metric_name: Name for the metric
+            exception: The exception that occurred
+            response_time: Response time in milliseconds
+            request_type: Category for the metric
+        """
+        self.environment.events.request.fire(
+            request_type=request_type,
+            name=metric_name,
+            response_time=response_time,
+            response_length=0,
+            exception=exception,
+            context={},
+        )
+
+    def timed_operation(self, operation_name: str, request_type: str = "mongodb"):
+        """
+        Context manager for timing MongoDB operations and reporting to Locust.
+
+        Usage:
+            with self.timed_operation("insert_one"):
+                self.collection.insert_one(doc)
+
+        Args:
+            operation_name: Name for the operation (appears in stats)
+            request_type: Category for the metric
+        """
+        return _TimedOperation(operation_name, request_type, self.environment.events)
+
+
+class _TimedOperation:
+    """Context manager that times an operation and reports to Locust."""
+
+    def __init__(self, name: str, request_type: str, events_instance):
+        self.name = name
+        self.request_type = request_type
+        self.events = events_instance
+        self.start_time = 0.0
+
+    def __enter__(self):
+        self.start_time = time.perf_counter()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # GreenletExit is raised when the runner kills user greenlets at
+        # shutdown.  It is not a real benchmark failure — skip recording
+        # and let it propagate silently.
+        if exc_type is not None and issubclass(exc_type, GreenletExit):
+            return False
+
+        elapsed_ms = (time.perf_counter() - self.start_time) * 1000
+        if exc_type is None:
+            self.events.request.fire(
+                request_type=self.request_type,
+                name=self.name,
+                response_time=elapsed_ms,
+                response_length=0,
+                exception=None,
+                context={},
+            )
+        else:
+            self.events.request.fire(
+                request_type=self.request_type,
+                name=self.name,
+                response_time=elapsed_ms,
+                response_length=0,
+                exception=exc_val,
+                context={},
+            )
+        # Don't suppress exceptions — let them propagate to Locust's
+        # task runner which logs them to exceptions stats (with tracebacks).
+        return False

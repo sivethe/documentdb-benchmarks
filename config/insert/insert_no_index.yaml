@@ -1,0 +1,11 @@
+# Insert Benchmark — No Secondary Index
+#
+# Measures raw insert throughput with only the default _id index.
+# Inherits shared settings from insert_base.yaml.
+
+inherits: insert_base.yaml
+
+benchmark_name: insert_no_index
+benchmark_module: benchmarks.insert.insert_no_index_benchmark
+collection: insert_test
+run_label: no-index

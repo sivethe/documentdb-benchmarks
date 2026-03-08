@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# Git pre-commit hook: block commits that contain MongoDB connection strings
+# with embedded credentials (user:password@).
+#
+# Catches patterns like:
+#   mongodb://user:pass@host
+#   mongodb+srv://user:pass@cluster.mongodb.net
+#
+# Ignores:
+#   - Binary files
+#   - Lines that are commented out (# or //)
+#   - Placeholder/example credentials (user:pass, <user>:<password>, etc.)
+#
+# Install:  git config core.hooksPath .githooks
+# Or:       cp .githooks/pre-commit .git/hooks/pre-commit
+
+set -euo pipefail
+
+# MongoDB URI with credentials: mongodb[+srv]://something:something@
+CREDENTIAL_PATTERN='mongodb(\+srv)?://[^/:@]+:[^/:@]+@'
+
+# Patterns that are clearly placeholders / examples (case-insensitive)
+PLACEHOLDER_PATTERN='(user|username|\*{2,}|<[^>]+>):(pass|password|\*{2,}|<[^>]+>|your[_-]?password)@'
+
+found=0
+
+# Only scan staged (to-be-committed) files; skip deletions.
+while IFS= read -r file; do
+    [[ -z "$file" ]] && continue
+
+    # Skip binary files
+    if file --brief --mime "$file" 2>/dev/null | grep -q "charset=binary"; then
+        continue
+    fi
+
+    # Read the staged version of the file from the index (not the work tree).
+    # Using `git show :file` ensures we catch credentials even on the initial
+    # commit or in files that were previously committed and amended.
+    matches=$(git show ":$file" 2>/dev/null \
+        | grep -inE "$CREDENTIAL_PATTERN" \
+        || true)
+
+    [[ -z "$matches" ]] && continue
+
+    # Filter out commented lines and known placeholders
+    while IFS= read -r line; do
+        # Extract the text after the line-number prefix ("12:content…")
+        content="${line#*:}"
+        # Skip comment lines
+        stripped="${content#"${content%%[![:space:]]*}"}"
+        if [[ "$stripped" == \#* ]] || [[ "$stripped" == //* ]]; then
+            continue
+        fi
+        # Skip placeholder credentials
+        if echo "$content" | grep -iqE "$PLACEHOLDER_PATTERN"; then
+            continue
+        fi
+        # Real credential found
+        if [[ $found -eq 0 ]]; then
+            echo "ERROR: MongoDB connection string with credentials detected in staged files."
+            echo ""
+        fi
+        echo "  $file (line ${line%%:*}):"
+        echo "    $content"
+        echo ""
+        found=1
+    done <<< "$matches"
+done < <(git diff --cached --name-only --diff-filter=d)
+
+if [[ $found -ne 0 ]]; then
+    echo "To fix: remove credentials from the file, or use environment variables instead."
+    echo "To bypass (use with caution): git commit --no-verify"
+    exit 1
+fi

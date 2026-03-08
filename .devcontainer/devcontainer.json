@@ -1,0 +1,37 @@
+{
+  "name": "documentdb-benchmarks",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "devcontainer",
+  "workspaceFolder": "/workspace",
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestArgs": ["tests"],
+        "editor.formatOnSave": true,
+        "[python]": {
+          "editor.defaultFormatter": "charliermarsh.ruff"
+        }
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-python.debugpy",
+        "charliermarsh.ruff",
+        "ms-toolsai.jupyter"
+      ]
+    }
+  },
+
+  "postCreateCommand": "pip install -e '.[dev]' && git config core.hooksPath .githooks",
+
+  "forwardPorts": [8089],
+  "portsAttributes": {
+    "8089": { "label": "Locust Web UI", "onAutoForward": "notify" }
+  },
+
+  "containerEnv": {
+    "MONGODB_URL": "mongodb://mongodb:27017"
+  }
+}
