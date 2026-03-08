@@ -30,7 +30,7 @@ from benchmark_runner.config import BenchmarkConfig
 # ---------------------------------------------------------------------------
 
 
-def _make_mock_environment(workload_params=None):
+def _make_mock_environment(workload_params=None, database_engine=""):
     """Create a minimal Locust Environment with a mock BenchmarkConfig."""
     env = Environment()
     config = BenchmarkConfig(
@@ -38,6 +38,7 @@ def _make_mock_environment(workload_params=None):
         database="test_db",
         collection="test_col",
         workload_params=workload_params or {},
+        database_engine=database_engine,
     )
     env.benchmark_config = config
     return env
@@ -271,6 +272,21 @@ class TestInsertSinglePathIndexOnStart:
         )
 
     @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_creates_timestamp_index_with_ordered_index_on_azure(self, mock_client_cls):
+        mock_client, _, mock_collection = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment(database_engine="azure_documentdb")
+        user = _make_user(InsertSinglePathIndexBenchmarkUser, env)
+        user.on_start()
+
+        mock_collection.create_index.assert_called_once_with(
+            [("timestamp", pymongo.ASCENDING)],
+            name="idx_timestamp_asc",
+            storageEngine={"enableOrderedIndex": True},
+        )
+
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
     def test_seed_runs_only_once(self, mock_client_cls):
         mock_client, _, mock_collection = _setup_mock_mongo()
         mock_client_cls.return_value = mock_client
@@ -355,6 +371,21 @@ class TestInsertWildcardIndexOnStart:
             name="idx_wildcard",
         )
 
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_creates_wildcard_index_with_ordered_index_on_azure(self, mock_client_cls):
+        mock_client, _, mock_collection = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment(database_engine="azure_documentdb")
+        user = _make_user(InsertWildcardIndexBenchmarkUser, env)
+        user.on_start()
+
+        mock_collection.create_index.assert_called_once_with(
+            [("$**", 1)],
+            name="idx_wildcard",
+            storageEngine={"enableOrderedIndex": True},
+        )
+
 
 class TestInsertWildcardIndexTasks:
     """Verify tasks for the wildcard-index variant."""
@@ -423,6 +454,21 @@ class TestInsertCompositeIndexOnStart:
         mock_collection.create_index.assert_called_once_with(
             [("category", pymongo.ASCENDING), ("timestamp", pymongo.ASCENDING)],
             name="idx_category_timestamp_asc",
+        )
+
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_creates_composite_index_with_ordered_index_on_azure(self, mock_client_cls):
+        mock_client, _, mock_collection = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment(database_engine="azure_documentdb")
+        user = _make_user(InsertCompositeIndexBenchmarkUser, env)
+        user.on_start()
+
+        mock_collection.create_index.assert_called_once_with(
+            [("category", pymongo.ASCENDING), ("timestamp", pymongo.ASCENDING)],
+            name="idx_category_timestamp_asc",
+            storageEngine={"enableOrderedIndex": True},
         )
 
 

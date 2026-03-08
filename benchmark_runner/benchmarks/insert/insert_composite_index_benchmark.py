@@ -44,9 +44,13 @@ class InsertCompositeIndexBenchmarkUser(MongoUser):
             "Creating composite index on 'category' + 'timestamp' for %s",
             self.collection.name,
         )
+        kwargs = {}
+        if self.config and self.config.database_engine == "azure_documentdb":
+            kwargs["storageEngine"] = {"enableOrderedIndex": True}
         self.collection.create_index(
             [("category", pymongo.ASCENDING), ("timestamp", pymongo.ASCENDING)],
             name="idx_category_timestamp_asc",
+            **kwargs,
         )
 
     @task(3)

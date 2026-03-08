@@ -43,9 +43,13 @@ class InsertWildcardIndexBenchmarkUser(MongoUser):
             "Creating wildcard index '$**' for %s",
             self.collection.name,
         )
+        kwargs = {}
+        if self.config and self.config.database_engine == "azure_documentdb":
+            kwargs["storageEngine"] = {"enableOrderedIndex": True}
         self.collection.create_index(
             [("$**", 1)],
             name="idx_wildcard",
+            **kwargs,
         )
 
     @task(3)

@@ -44,9 +44,13 @@ class InsertSinglePathIndexBenchmarkUser(MongoUser):
             "Creating ascending index on 'timestamp' for %s",
             self.collection.name,
         )
+        kwargs = {}
+        if self.config and self.config.database_engine == "azure_documentdb":
+            kwargs["storageEngine"] = {"enableOrderedIndex": True}
         self.collection.create_index(
             [("timestamp", pymongo.ASCENDING)],
             name="idx_timestamp_asc",
+            **kwargs,
         )
 
     @task(3)
