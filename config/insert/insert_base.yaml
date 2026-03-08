@@ -23,5 +23,5 @@ workload_params:
   drop_on_start: true     # clean collection before run
   sharded: false          # set to true to shard the collection
   shard_key: "_id"        # shard key path: "_id" or "category"
-  insert_one_weight: 3    # task weight for insert_one (0 to disable)
-  insert_many_weight: 0   # task weight for insert_many (0 to disable)
+  insert_one_weight: 0    # task weight for insert_one (0 to disable)
+  insert_many_weight: 1   # task weight for insert_many (0 to disable)

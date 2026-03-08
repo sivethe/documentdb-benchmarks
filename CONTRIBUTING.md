@@ -108,20 +108,20 @@ Chained inheritance (grandparent → parent → child) is supported.
 
 ```bash
 # Run against MongoDB
-python -m benchmark_runner.runner --config config/my_benchmark.yaml \
+python -m benchmark_runner --config config/my_benchmark.yaml \
     --database-engine mongodb
 
 # Run against Azure DocumentDB (modify config or override on CLI)
-python -m benchmark_runner.runner --config config/my_benchmark.yaml \
+python -m benchmark_runner --config config/my_benchmark.yaml \
     --database-engine azure-documentdb \
     --mongodb-url "mongodb://..." \
     --run-label azure-single-node
 
 # Compare
-python -m benchmark_analyzer.analyzer \
+python -m benchmark_analyzer \
     --results-dir results/my_benchmark \
     --group-by database_engine \
-    --output my_benchmark_comparison.html
+    --output my_benchmark_comparison.md
 ```
 
 ## The MongoUser Base Class

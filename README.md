@@ -11,15 +11,26 @@ documentdb-benchmarks/
 │   ├── config.py               # YAML config loading + CLI argument parsing
 │   ├── base_benchmark.py       # MongoUser base class for all benchmarks
 │   └── benchmarks/             # Individual benchmark definitions
-│       └── insert_benchmark.py # Insert (write) performance
+│       └── insert/             # Insert (write) performance variants
+│           ├── insert_no_index_benchmark.py
+│           ├── insert_single_path_index_benchmark.py
+│           ├── insert_composite_index_benchmark.py
+│           ├── insert_wildcard_index_benchmark.py
+│           └── insert_unique_index_benchmark.py
 ├── benchmark_analyzer/         # Analyze and compare results across runs
 │   ├── analyzer.py             # CLI for analysis and comparison
 │   ├── report_loader.py        # Load Locust CSV + metadata files
 │   ├── comparator.py           # Compare runs across scenarios or databases
 │   └── report_generator.py     # Generate console/HTML/CSV reports
 ├── config/                     # Example configuration files
-│   ├── insert_benchmark.yaml
-│   └── insert_sharded_benchmark.yaml
+│   └── insert/                 # Insert benchmark configs
+│       ├── insert_base.yaml
+│       ├── insert_no_index.yaml
+│       ├── insert_single_path_index.yaml
+│       ├── insert_composite_index.yaml
+│       ├── insert_wildcard_index.yaml
+│       ├── insert_unique_index.yaml
+│       └── *_sharded.yaml      # Sharded variants for each
 ├── pyproject.toml
 └── README.md
 ```
@@ -43,18 +54,18 @@ git config core.hooksPath .githooks
 
 ```bash
 # Using a config file (recommended)
-python -m benchmark_runner.runner --config config/insert_benchmark.yaml \
+python -m benchmark_runner --config config/insert/insert_no_index.yaml \
     --database-engine mongodb
 
 # With CLI overrides
-python -m benchmark_runner.runner --config config/insert_benchmark.yaml \
+python -m benchmark_runner --config config/insert/insert_unique_index.yaml \
     --database-engine mongodb \
     --mongodb-url "mongodb://myhost:27017" \
     --users 20 \
     --run-time 120s
 
 # Using the installed entry point
-bench-run --config config/insert_benchmark.yaml --database-engine mongodb
+bench-run --config config/insert/insert_no_index.yaml --database-engine mongodb
 ```
 
 ### Analyzing Results
@@ -105,17 +116,17 @@ Each benchmark run generates:
 2. **Run against each target** — execute with different connection strings and labels:
    ```bash
    # MongoDB
-   bench-run -c config/insert_benchmark.yaml \
+   bench-run -c config/insert/insert_unique_index.yaml \
        --mongodb-url "mongodb://mongo:27017" \
        --database-engine mongodb --run-label "MongoDB 7.0"
 
    # Azure DocumentDB
-   bench-run -c config/insert_benchmark.yaml \
+   bench-run -c config/insert/insert_unique_index.yaml \
        --mongodb-url "mongodb://azure:10255/?ssl=true" \
        --database-engine azure-documentdb --run-label "Azure DocumentDB"
 
    # Atlas
-   bench-run -c config/insert_benchmark.yaml \
+   bench-run -c config/insert/insert_unique_index.yaml \
        --mongodb-url "mongodb+srv://atlas.example.net" \
        --database-engine atlas --run-label "Atlas M10"
    ```
@@ -167,9 +178,10 @@ location=eastus
 mongodb=mongodb://mongodb:27017
 # atlas=mongodb+srv://user:pass@cluster.mongodb.net
 
-# Benchmarks to run
+# Benchmarks to run (one per line — config/ is prepended automatically)
 [benchmarks]
-insert_benchmark.yaml
+insert/insert_no_index.yaml
+insert/insert_unique_index.yaml
 ```
 
 Results are organized by engine under a timestamped run directory:
@@ -192,6 +204,21 @@ Results are organized by engine under a timestamped run directory:
 | `output_dir` | `--output-dir` / `-o` | `results` | Output directory |
 | `workload_params` | _(config only)_ | `{}` | Benchmark-specific parameters |
 | `inherits` | _(config only)_ | _(none)_ | Parent config file (relative path); values are deep-merged |
+
+### Insert Benchmark Variants
+
+All insert benchmarks inherit shared defaults from `config/insert/insert_base.yaml`.
+Each variant adds a different index type to isolate its write-path overhead:
+
+| Config | Index | Description |
+|--------|-------|-------------|
+| `insert_no_index.yaml` | _(none)_ | Baseline — only the default `_id` index |
+| `insert_single_path_index.yaml` | `timestamp` ASC | Single-field ascending index |
+| `insert_composite_index.yaml` | `(category, timestamp)` ASC | Multi-key compound index |
+| `insert_wildcard_index.yaml` | `$**` | Root wildcard index (indexes every field) |
+| `insert_unique_index.yaml` | `timestamp` ASC, **unique** | Unique index — adds duplicate-key check overhead |
+
+Each variant also has a `*_sharded.yaml` config that enables collection sharding.
 
 ### Insert Benchmark `workload_params`
 

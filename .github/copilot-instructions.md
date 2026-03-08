@@ -76,7 +76,7 @@ See the insert benchmarks for the reference implementation.
 
 ```bash
 # Run a benchmark (inside devcontainer)
-python -m benchmark_runner --config config/insert_benchmark.yaml --mongodb-url "mongodb://mongodb:27017"
+python -m benchmark_runner --config config/insert/insert_no_index.yaml --mongodb-url "mongodb://mongodb:27017"
 
 # Analyze results
 python -m benchmark_analyzer --results-dir results/insert
@@ -154,3 +154,16 @@ Single INI-style config file shared by both `run-local.sh` and `run-aci.sh`. Sec
 - **Sharding may not be supported by all engines.** The `shardCollection` admin command can fail with `CommandNotFound` on Atlas free-tier, standalone `mongod`, or engines that don't support it. When sharding is requested (`sharded: true` in workload params) and the command fails, the error is stored on the class (`_sharding_error`) and every subsequent task must call `self.fail_if_sharding_error(op_name)` to report failures instead of silently running unsharded.
 - **Class-level flags are shared across users.** `_seed_done`, `_extra_seed_done`, and `_sharding_error` are on the benchmark class, not the instance. Each subclass gets its own copy via `__init_subclass__`, but all instances of the same class share them. Tests must reset these flags before each test case.
 - **`json.dump` will raise `TypeError` for any non-primitive type.** Before serialising report dicts, ensure every value is a `str`, `int`, `float`, `bool`, `None`, `list`, or `dict`. Watch for `Exception`, `Path`, `datetime`, and `bytes` objects sneaking into report data.
+
+## Documentation Checklist for New Benchmarks
+
+When adding a new benchmark, update **all** of the following so documentation stays in sync:
+
+1. **Benchmark module** — Create the Python file under `benchmark_runner/benchmarks/<category>/` (e.g. `insert_unique_index_benchmark.py`). Include a module-level docstring listing all `workload_params`.
+2. **YAML configs** — Add a base config in `config/<category>/` that inherits from the shared base (e.g. `insert_base.yaml`). Add a `*_sharded.yaml` variant if sharding applies.
+3. **Tests** — Add test classes to the relevant test file in `tests/` (e.g. `tests/test_insert_benchmarks.py`). Cover: index creation, Azure `storageEngine` kwargs, seed-once behaviour, task execution, sharding-error handling, weight params, and task weights.
+4. **README.md** — Update the project-structure tree, the **Insert Benchmark Variants** table (or equivalent table for the benchmark category), and any example commands that reference config paths.
+5. **CONTRIBUTING.md** — If the new benchmark introduces a new pattern or category, add or update the relevant guidance section.
+6. **This file (`.github/copilot-instructions.md`)** — If the new benchmark introduces patterns, pitfalls, or conventions not already covered, document them here.
+7. **`deploy/pipeline.config`** — Add the new config filename (commented out) under `[benchmarks]` so users can easily enable it.
+8. **Run the full test suite** (`pytest`) and fix any failures before finishing.

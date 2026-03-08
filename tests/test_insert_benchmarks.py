@@ -1,10 +1,11 @@
-"""Tests for the four insert benchmark variants.
+"""Tests for the five insert benchmark variants.
 
 Covers:
 - insert_no_index_benchmark
 - insert_single_path_index_benchmark
 - insert_wildcard_index_benchmark
 - insert_composite_index_benchmark
+- insert_unique_index_benchmark
 """
 
 from unittest.mock import MagicMock, patch
@@ -21,6 +22,9 @@ from benchmark_runner.benchmarks.insert.insert_wildcard_index_benchmark import (
 )
 from benchmark_runner.benchmarks.insert.insert_composite_index_benchmark import (
     InsertCompositeIndexBenchmarkUser,
+)
+from benchmark_runner.benchmarks.insert.insert_unique_index_benchmark import (
+    InsertUniqueIndexBenchmarkUser,
 )
 from benchmark_runner.config import BenchmarkConfig
 
@@ -517,3 +521,195 @@ class TestInsertCompositeIndexWeights:
         name_weights = {func.__name__: weight for func, weight in weights.items()}
         assert name_weights.get("insert_one_compositeIndex") == 3
         assert name_weights.get("insert_many_compositeIndex") == 1
+
+
+# ===========================================================================
+# InsertUniqueIndexBenchmarkUser
+# ===========================================================================
+
+
+class TestInsertUniqueIndexOnStart:
+    """Verify on_start for the unique-index variant."""
+
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_creates_unique_index(self, mock_client_cls):
+        mock_client, _, mock_collection = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment()
+        user = _make_user(InsertUniqueIndexBenchmarkUser, env)
+        user.on_start()
+
+        mock_collection.create_index.assert_called_once_with(
+            [("timestamp", pymongo.ASCENDING)],
+            name="idx_timestamp_unique",
+            unique=True,
+        )
+
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_creates_unique_index_with_ordered_index_on_azure(self, mock_client_cls):
+        mock_client, _, mock_collection = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment(database_engine="azure_documentdb")
+        user = _make_user(InsertUniqueIndexBenchmarkUser, env)
+        user.on_start()
+
+        mock_collection.create_index.assert_called_once_with(
+            [("timestamp", pymongo.ASCENDING)],
+            name="idx_timestamp_unique",
+            unique=True,
+            storageEngine={"enableOrderedIndex": True},
+        )
+
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_seed_runs_only_once(self, mock_client_cls):
+        mock_client, _, mock_collection = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment()
+        user1 = _make_user(InsertUniqueIndexBenchmarkUser, env)
+        user1.on_start()
+
+        mock_collection.reset_mock()
+        user2 = InsertUniqueIndexBenchmarkUser(env)
+        user2.on_start()
+
+        assert mock_collection.create_index.call_count == 0
+
+
+class TestInsertUniqueIndexTasks:
+    """Verify tasks for the unique-index variant."""
+
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_insert_one(self, mock_client_cls):
+        mock_client, _, mock_collection = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment({"document_size": 256, "batch_size": 5})
+        user = _make_user(InsertUniqueIndexBenchmarkUser, env)
+        user.on_start()
+        user.insert_one_uniqueIndex()
+
+        mock_collection.insert_one.assert_called_once()
+
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_insert_many(self, mock_client_cls):
+        mock_client, _, mock_collection = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment({"document_size": 256, "batch_size": 5})
+        user = _make_user(InsertUniqueIndexBenchmarkUser, env)
+        user.on_start()
+        user.insert_many_uniqueIndex()
+
+        mock_collection.insert_many.assert_called_once()
+        docs = mock_collection.insert_many.call_args.args[0]
+        assert len(docs) == 5
+
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_insert_one_sharding_error(self, mock_client_cls):
+        mock_client, _, mock_collection = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment()
+        user = _make_user(InsertUniqueIndexBenchmarkUser, env)
+        user.on_start()
+        InsertUniqueIndexBenchmarkUser._sharding_error = "shard failed"
+        user.insert_one_uniqueIndex()
+
+        mock_collection.insert_one.assert_not_called()
+
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_insert_many_sharding_error(self, mock_client_cls):
+        mock_client, _, mock_collection = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment()
+        user = _make_user(InsertUniqueIndexBenchmarkUser, env)
+        user.on_start()
+        InsertUniqueIndexBenchmarkUser._sharding_error = "shard failed"
+        user.insert_many_uniqueIndex()
+
+        mock_collection.insert_many.assert_not_called()
+
+
+class TestInsertUniqueIndexWeights:
+    """Verify task weights for the unique-index variant."""
+
+    def test_task_weights(self):
+        tasks = InsertUniqueIndexBenchmarkUser.tasks
+        if isinstance(tasks, dict):
+            weights = tasks
+        else:
+            from collections import Counter
+
+            weights = Counter(tasks)
+
+        name_weights = {func.__name__: weight for func, weight in weights.items()}
+        assert name_weights.get("insert_one_uniqueIndex") == 3
+        assert name_weights.get("insert_many_uniqueIndex") == 1
+
+
+class TestInsertUniqueIndexWeightParams:
+    """Verify insert_one_weight / insert_many_weight config params for unique-index."""
+
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_insert_one_skipped_when_weight_zero(self, mock_client_cls):
+        mock_client, _, mock_collection = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment({"insert_one_weight": 0})
+        user = _make_user(InsertUniqueIndexBenchmarkUser, env)
+        user.on_start()
+        user.insert_one_uniqueIndex()
+
+        mock_collection.insert_one.assert_not_called()
+
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_insert_many_skipped_when_weight_zero(self, mock_client_cls):
+        mock_client, _, mock_collection = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment({"insert_many_weight": 0})
+        user = _make_user(InsertUniqueIndexBenchmarkUser, env)
+        user.on_start()
+        user.insert_many_uniqueIndex()
+
+        mock_collection.insert_many.assert_not_called()
+
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_insert_one_runs_when_weight_nonzero(self, mock_client_cls):
+        mock_client, _, mock_collection = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment({"insert_one_weight": 1, "insert_many_weight": 0})
+        user = _make_user(InsertUniqueIndexBenchmarkUser, env)
+        user.on_start()
+        user.insert_one_uniqueIndex()
+
+        mock_collection.insert_one.assert_called_once()
+
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_insert_many_runs_when_weight_nonzero(self, mock_client_cls):
+        mock_client, _, mock_collection = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment({"insert_one_weight": 0, "insert_many_weight": 5})
+        user = _make_user(InsertUniqueIndexBenchmarkUser, env)
+        user.on_start()
+        user.insert_many_uniqueIndex()
+
+        mock_collection.insert_many.assert_called_once()
+
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_default_weights(self, mock_client_cls):
+        mock_client, _, _ = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment()
+        user = _make_user(InsertUniqueIndexBenchmarkUser, env)
+        user.on_start()
+
+        assert user.insert_one_weight == 3
+        assert user.insert_many_weight == 1

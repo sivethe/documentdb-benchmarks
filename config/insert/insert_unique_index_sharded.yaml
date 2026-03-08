@@ -1,0 +1,11 @@
+# Insert Benchmark — Unique Ascending Index (Sharded)
+#
+# Sharded variant: inherits from insert_unique_index.yaml and enables sharding.
+
+inherits: insert_unique_index.yaml
+
+benchmark_name: insert_unique_index_sharded
+run_label: unique-index-sharded
+
+workload_params:
+  sharded: true
