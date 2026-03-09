@@ -26,12 +26,41 @@ Benchmarks run Locust **programmatically** via `locust.env.Environment`, not via
 - The `MongoUser` base class (`base_benchmark.py`) handles this — always use `self.timed_operation()` or `self.track_custom_metric()` to report stats.
 - `StatsCSVFileWriter` requires a `percentiles_to_report` argument.
 
+### Data Generators
+
+Reusable document-generation helpers live in **`benchmark_runner/data_generators/`** so
+they can be shared across multiple benchmark categories (insert, update, read, etc.).
+
+**Naming convention:** `document_<size><unit>[_<characteristic>].py`
+
+- The file name **must** start with `document_` followed by the target document
+  size and unit (e.g. `256byte`, `1kb`, `4kb`).
+- If the generator produces documents with a specific trait beyond size, append a
+  descriptor after the size: e.g. `document_4kb_nested.py`,
+  `document_1kb_arrays.py`.
+- Each module exposes a `generate_document(size_bytes: int = <default>) -> dict`
+  function with a Google-style docstring.
+
+Existing generators:
+
+| Module | Default size | Description |
+|--------|-------------|-------------|
+| `document_256byte.py` | 256 B | Standard flat schema (`_id`, `timestamp`, `category`, `value`, `counter`, optional `payload` padding) |
+
+Benchmarks import directly from the canonical path:
+```python
+from benchmark_runner.data_generators.document_256byte import generate_document
+```
+A backward-compatible re-export exists in `benchmark_runner.benchmarks.insert.insert_common`
+for older code.
+
 ### Writing Benchmarks
 
 - Create a new file under `benchmark_runner/benchmarks/`.
 - Subclass `MongoUser` from `benchmark_runner.base_benchmark`.
 - Use `@task` decorators and `self.timed_operation("operation_name")` context manager to time operations.
 - Access workload parameters with `self.get_param("key", default)`.
+- Import document generators from `benchmark_runner.data_generators`.
 - Configuration is attached to the Locust environment as `env.benchmark_config`.
 
 ### Task Weight Config Pattern
@@ -106,6 +135,7 @@ ruff check .
 ## File Layout Conventions
 
 - Entry points are in `__main__.py` files (delegate to `main()` in the primary module).
+- Shared document generators live in `benchmark_runner/data_generators/` and follow the naming convention `document_<size>[_<trait>].py` (e.g. `document_256byte.py`, `document_4kb_nested.py`).
 - Benchmark YAML configs go in `config/`.
 - Results are written to `results/YYYYMMDD-NNN/<engine_name>/`.
 - Each run produces: `*_stats.csv`, `*_report.md`, `*_metadata.json`.
@@ -159,11 +189,12 @@ Single INI-style config file shared by both `run-local.sh` and `run-aci.sh`. Sec
 
 When adding a new benchmark, update **all** of the following so documentation stays in sync:
 
-1. **Benchmark module** — Create the Python file under `benchmark_runner/benchmarks/<category>/` (e.g. `insert_unique_index_benchmark.py`). Include a module-level docstring listing all `workload_params`.
-2. **YAML configs** — Add a base config in `config/<category>/` that inherits from the shared base (e.g. `insert_base.yaml`). Add a `*_sharded.yaml` variant if sharding applies.
-3. **Tests** — Add test classes to the relevant test file in `tests/` (e.g. `tests/test_insert_benchmarks.py`). Cover: index creation, Azure `storageEngine` kwargs, seed-once behaviour, task execution, sharding-error handling, weight params, and task weights.
-4. **README.md** — Update the project-structure tree, the **Insert Benchmark Variants** table (or equivalent table for the benchmark category), and any example commands that reference config paths.
-5. **CONTRIBUTING.md** — If the new benchmark introduces a new pattern or category, add or update the relevant guidance section.
-6. **This file (`.github/copilot-instructions.md`)** — If the new benchmark introduces patterns, pitfalls, or conventions not already covered, document them here.
-7. **`deploy/pipeline.config`** — Add the new config filename (commented out) under `[benchmarks]` so users can easily enable it.
-8. **Run the full test suite** (`pytest`) and fix any failures before finishing.
+1. **Data generator** (if needed) — If the benchmark requires a new document shape or size, add a generator in `benchmark_runner/data_generators/` following the naming convention `document_<size>[_<trait>].py`. Add tests in `tests/test_insert_common.py` (or a new `test_data_generators.py` file). Update the generators table in this file.
+2. **Benchmark module** — Create the Python file under `benchmark_runner/benchmarks/<category>/` (e.g. `insert_unique_index_benchmark.py`). Include a module-level docstring listing all `workload_params`. Import document generators from `benchmark_runner.data_generators`.
+3. **YAML configs** — Add a base config in `config/<category>/` that inherits from the shared base (e.g. `insert_base.yaml`). Add a `*_sharded.yaml` variant if sharding applies.
+4. **Tests** — Add test classes to the relevant test file in `tests/` (e.g. `tests/test_insert_benchmarks.py`). Cover: index creation, Azure `storageEngine` kwargs, seed-once behaviour, task execution, sharding-error handling, weight params, and task weights.
+5. **README.md** — Update the project-structure tree, the **Insert Benchmark Variants** table (or equivalent table for the benchmark category), and any example commands that reference config paths.
+6. **CONTRIBUTING.md** — If the new benchmark introduces a new pattern or category, add or update the relevant guidance section.
+7. **This file (`.github/copilot-instructions.md`)** — If the new benchmark introduces patterns, pitfalls, or conventions not already covered, document them here.
+8. **`deploy/pipeline.config`** — Add the new config filename (commented out) under `[benchmarks]` so users can easily enable it.
+9. **Run the full test suite** (`pytest`) and fix any failures before finishing.

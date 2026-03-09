@@ -1,6 +1,8 @@
-"""Tests for benchmark_runner.benchmarks.insert_common — shared document generation."""
+"""Tests for document generation — canonical module and backward-compatible re-export."""
 
-from benchmark_runner.benchmarks.insert.insert_common import generate_document
+from datetime import datetime, timezone
+
+from benchmark_runner.data_generators.document_256byte import _BASE_DOC_SIZE, generate_document
 
 
 class TestGenerateDocument:
@@ -8,11 +10,17 @@ class TestGenerateDocument:
 
     def test_has_required_fields(self):
         doc = generate_document()
-        assert "_id" in doc
-        assert "timestamp" in doc
-        assert "category" in doc
-        assert "value" in doc
-        assert "counter" in doc
+        for field in (
+            "_id",
+            "timestamp",
+            "category",
+            "value",
+            "counter",
+            "expireAt",
+            "uniqueNumber",
+            "uniqueString",
+        ):
+            assert field in doc
 
     def test_category_in_expected_set(self):
         for _ in range(50):
@@ -23,18 +31,17 @@ class TestGenerateDocument:
         doc = generate_document(256)
         assert "payload" in doc
         assert isinstance(doc["payload"], str)
-        # Padding should be roughly 256 - 150 = 106 chars
-        assert len(doc["payload"]) == 106
+        assert len(doc["payload"]) == 256 - _BASE_DOC_SIZE
 
     def test_small_size_no_payload(self):
         doc = generate_document(50)
-        # 50 < base size estimate (150), so no padding
+        # 50 < base size estimate, so no padding
         assert "payload" not in doc
 
     def test_large_size(self):
         doc = generate_document(2048)
         assert "payload" in doc
-        assert len(doc["payload"]) == 2048 - 150
+        assert len(doc["payload"]) == 2048 - _BASE_DOC_SIZE
 
     def test_unique_ids_across_calls(self):
         ids = {generate_document()["_id"] for _ in range(100)}
@@ -47,3 +54,36 @@ class TestGenerateDocument:
     def test_value_is_float(self):
         doc = generate_document()
         assert isinstance(doc["value"], float)
+
+    def test_expire_at_is_future_utc_datetime(self):
+        doc = generate_document()
+        assert isinstance(doc["expireAt"], datetime)
+        assert doc["expireAt"].tzinfo is not None
+        assert doc["expireAt"] > datetime.now(timezone.utc)
+
+    def test_unique_number_is_int_and_unique(self):
+        docs = [generate_document() for _ in range(100)]
+        numbers = [d["uniqueNumber"] for d in docs]
+        assert all(isinstance(n, int) for n in numbers)
+        assert len(set(numbers)) == 100
+
+    def test_unique_string_is_str_and_unique(self):
+        docs = [generate_document() for _ in range(100)]
+        strings = [d["uniqueString"] for d in docs]
+        assert all(isinstance(s, str) for s in strings)
+        assert len(set(strings)) == 100
+
+
+class TestInsertCommonReExport:
+    """Verify that the old import path still works."""
+
+    def test_backward_compatible_import(self):
+        from benchmark_runner.benchmarks.insert.insert_common import (
+            generate_document as gen_compat,
+        )
+
+        doc = gen_compat(256)
+        assert "_id" in doc
+        assert "expireAt" in doc
+        assert "uniqueNumber" in doc
+        assert "uniqueString" in doc

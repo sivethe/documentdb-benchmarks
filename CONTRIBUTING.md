@@ -162,6 +162,34 @@ Setting a weight to `0` effectively disables the task. This lets users run a
 subset of tasks (e.g. only `insert_one` or only `insert_many`) purely via config.
 See the insert benchmarks for the reference implementation.
 
+## Data Generators
+
+Reusable document generators live in `benchmark_runner/data_generators/` and are shared
+across all benchmark categories. Each generator is a Python module that exposes a
+`generate_document(size_bytes: int = <default>) -> dict` function.
+
+**Naming convention:** `document_<size><unit>[_<characteristic>].py`
+
+- The file name **must** start with `document_` followed by the target document
+  size and unit (e.g. `256byte`, `1kb`, `4kb`).
+- If the generator produces documents with a specific trait beyond size, append a
+  descriptor after the size: e.g. `document_4kb_nested.py`,
+  `document_1kb_arrays.py`.
+- Each module exposes a `generate_document(size_bytes: int = <default>) -> dict`
+  function with a Google-style docstring.
+
+| Module | Default size | Description |
+|--------|-------------|-------------|
+| `document_256byte.py` | 256 B | Standard flat schema (`_id`, `timestamp`, `category`, `value`, `counter`, optional `payload` padding) |
+
+Benchmarks import directly from the canonical path:
+
+```python
+from benchmark_runner.data_generators.document_256byte import generate_document
+```
+To add a new generator, create a file following the naming convention and add
+tests in `tests/test_insert_common.py` or a dedicated test file.
+
 ## Running Tests
 
 ```bash

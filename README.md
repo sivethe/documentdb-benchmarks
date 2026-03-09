@@ -10,6 +10,8 @@ documentdb-benchmarks/
 │   ├── runner.py               # Main runner - orchestrates Locust execution
 │   ├── config.py               # YAML config loading + CLI argument parsing
 │   ├── base_benchmark.py       # MongoUser base class for all benchmarks
+│   ├── data_generators/        # Shared document generators (used by all benchmarks)
+│   │   └── document_256byte.py # ~256-byte documents with standard field schema
 │   └── benchmarks/             # Individual benchmark definitions
 │       └── insert/             # Insert (write) performance variants
 │           ├── insert_no_index_benchmark.py
