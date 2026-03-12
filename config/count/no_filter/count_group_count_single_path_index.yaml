@@ -1,0 +1,12 @@
+# Count Benchmark — $group + $count:{} (Single Path Index)
+#
+# Variant with a single ascending index on `category`.
+# Inherits shared settings from count_group_count.yaml.
+
+inherits: count_group_count.yaml
+
+benchmark_name: count_group_count_single_path_index
+run_label: group-count-single-path-index
+
+workload_params:
+  index_type: "category"

@@ -1,0 +1,28 @@
+# Count/Aggregation Benchmark — Base Configuration
+#
+# Shared settings inherited by all count benchmark variants.
+# Do NOT run this config directly — use one of the variant configs
+# (e.g. count_group_sum.yaml, count_group_count.yaml, etc.).
+
+# MongoDB connection (defaults to MONGODB_URL env var; override here or via --mongodb-url)
+# mongodb_url: "mongodb://localhost:27017"
+database: benchmark_db
+
+# Locust concurrency settings
+users: 10
+spawn_rate: 5
+run_time: "60s"
+
+# Output
+output_dir: results/count
+
+# Workload-specific parameters
+workload_params:
+  seed_docs: 1000000        # documents to seed in collection
+  document_size: 256        # bytes per document
+  index_type: "none"        # index to create: none, category, category_value, wildcard
+  drop_on_start: true       # clean collection before seeding
+  # match_filter:           # optional $match filter prepended to pipeline (default: none)
+  #   category: "A"         # example: equality filter on category
+  sharded: false            # set to true to shard the collection
+  shard_key: "_id"          # shard key path: "_id" or "category"

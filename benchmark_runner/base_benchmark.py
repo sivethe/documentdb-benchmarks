@@ -12,7 +12,7 @@ Provides a MongoUser base class that handles:
 import logging
 import threading
 import time
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from gevent import GreenletExit
 import pymongo
@@ -58,6 +58,10 @@ class MongoUser(User):
         cls._seed_lock = threading.Lock()
         cls._seed_done = False
         cls._sharding_error: Optional[str] = None
+        cls._explain_lock = threading.Lock()
+        cls._explain_done = False
+        cls._explain_result: Optional[dict] = None
+        cls._indexes_result: Optional[List[dict]] = None
 
     def __init__(self, environment):
         super().__init__(environment)
@@ -134,12 +138,85 @@ class MongoUser(User):
             self._setup_sharding()
 
             seed_func()
+
+            # Wait for any async index builds to finish, then snapshot indexes.
+            self._wait_for_index_builds()
+            self._capture_indexes()
+
             self.__class__._seed_done = True
             logger.info(
                 "Seeding complete for %s (%s docs)",
                 self.collection.name,
                 self.collection.estimated_document_count(),
             )
+
+    def _wait_for_index_builds(self, poll_interval: float = 2.0, timeout: int = 600) -> None:
+        """Poll ``currentOp`` until no index builds are running on the collection.
+
+        Some database engines return from ``createIndex`` before the
+        index is fully built.  This method polls the server to make sure
+        all background index builds for the current collection have
+        finished before the benchmark starts measuring.
+
+        Args:
+            poll_interval: Seconds between ``currentOp`` polls.
+            timeout: Maximum seconds to wait before giving up.
+        """
+        collection_name = self.collection.name
+        start = time.monotonic()
+        while time.monotonic() - start < timeout:
+            try:
+                current_ops = self.db.current_op({"ns": self.db.name + "." + collection_name})
+                ops = current_ops.get("inprog", [])
+                index_ops = [
+                    op
+                    for op in ops
+                    if op.get("msg", "").startswith("Index Build")
+                    or op.get("command", {}).get("createIndexes") == collection_name
+                ]
+                if not index_ops:
+                    logger.info(
+                        "No index builds in progress on %s (waited %.1fs)",
+                        collection_name,
+                        time.monotonic() - start,
+                    )
+                    return
+                logger.info(
+                    "Waiting for %d index build(s) on %s...",
+                    len(index_ops),
+                    collection_name,
+                )
+            except Exception as exc:
+                # Some engines don't support currentOp or restrict it.
+                logger.debug(
+                    "currentOp check unavailable, skipping index build wait: %s",
+                    exc,
+                )
+                return
+            time.sleep(poll_interval)
+        logger.warning(
+            "Timed out waiting for index builds on %s after %ds",
+            collection_name,
+            timeout,
+        )
+
+    def _capture_indexes(self) -> None:
+        """Run ``list_indexes()`` and store the result on the class.
+
+        The runner writes the captured list to
+        ``<csv_prefix>_getIndexes.json`` in the output directory.
+        """
+        try:
+            indexes = [idx for idx in self.collection.list_indexes()]
+            self.__class__._indexes_result = indexes
+            index_names = [idx.get("name", "?") for idx in indexes]
+            logger.info(
+                "Indexes on %s: %s",
+                self.collection.name,
+                index_names,
+            )
+        except Exception:
+            logger.warning("Failed to capture index list", exc_info=True)
 
     def _setup_sharding(self) -> None:
         """Configure collection sharding if enabled in workload_params.
@@ -202,6 +279,32 @@ class MongoUser(User):
         except Exception as exc:
             logger.error("Failed to shard collection %s: %s", namespace, exc)
             self.__class__._sharding_error = f"shardCollection failed for {namespace}: {exc}"
+
+    def capture_explain_plan(self, explain_func: Callable[[], dict]) -> None:
+        """Run an explain function exactly once and store its output.
+
+        Uses a class-level lock so only the first user to call this
+        method executes *explain_func*. The returned dict is stored on
+        the class and later written to ``<name>_explain.json`` by the
+        runner.
+
+        Call this in ``on_start()`` **after** ``seed_collection()``.
+
+        Args:
+            explain_func: Callable that returns a dict containing the
+                          explain plan output (e.g. from a
+                          ``db.command("explain", ...)`` call).
+        """
+        with self.__class__._explain_lock:
+            if self.__class__._explain_done:
+                return
+            try:
+                result = explain_func()
+                self.__class__._explain_result = result
+                logger.info("Explain plan captured for %s", self.__class__.__name__)
+            except Exception:
+                logger.warning("Failed to capture explain plan", exc_info=True)
+            self.__class__._explain_done = True
 
     def fail_if_sharding_error(self, operation_name: str) -> bool:
         """Check whether sharding setup failed and report a task failure if so.

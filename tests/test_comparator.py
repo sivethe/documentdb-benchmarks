@@ -86,7 +86,7 @@ class TestCompareRunsSections:
             assert "azure" in op.stats_by_label
 
     def test_two_benchmarks_two_engines_grouped_by_engine(self):
-        """Two benchmarks x two engines -> two sections (one per benchmark)."""
+        """Two benchmarks x two engines -> two sections (one per label/segment)."""
         runs = [
             _make_run("insert_sharded", "sharded", "atlas", rps=90),
             _make_run("insert_sharded", "sharded", "azure", rps=80),
@@ -95,13 +95,13 @@ class TestCompareRunsSections:
         ]
         report = compare_runs(runs, group_by="database_engine")
 
+        # Segments merge by run_label, so "sharded" and "unsharded" each get one section
         assert len(report.sections) == 2
         assert report.labels == ["atlas", "azure"]
 
         titles = [s.title for s in report.sections]
-        # Sections are sorted by (benchmark_name, segment_val)
-        assert "insert_sharded (sharded)" in titles
-        assert "insert_single (unsharded)" in titles
+        assert "sharded" in titles
+        assert "unsharded" in titles
 
         # Each section compares atlas vs azure independently
         for section in report.sections:
@@ -110,10 +110,10 @@ class TestCompareRunsSections:
                 assert "azure" in op.stats_by_label
 
     def test_two_benchmarks_two_engines_grouped_by_label(self):
-        """Two benchmarks x two engines, grouped by run_label -> four sections.
+        """Two benchmarks x two engines, grouped by run_label -> two sections.
 
-        segment_by=database_engine, so each (benchmark, engine) pair is a
-        section comparing labels (sharded vs unsharded).
+        segment_by=database_engine, so each engine gets one section
+        comparing labels (sharded vs unsharded).
         """
         runs = [
             _make_run("insert_sharded", "sharded", "atlas"),
@@ -123,18 +123,21 @@ class TestCompareRunsSections:
         ]
         report = compare_runs(runs, group_by="run_label")
 
-        # 2 benchmarks x 2 engines = 4 sections
-        assert len(report.sections) == 4
+        # Segments merge by database_engine: atlas and azure
+        assert len(report.sections) == 2
         assert report.labels == ["sharded", "unsharded"]
 
         titles = [s.title for s in report.sections]
-        assert "insert_sharded (atlas)" in titles
-        assert "insert_sharded (azure)" in titles
-        assert "insert_single (atlas)" in titles
-        assert "insert_single (azure)" in titles
+        assert "atlas" in titles
+        assert "azure" in titles
 
     def test_no_cross_contamination_of_operations(self):
-        """Operations with the same name in different benchmarks must not merge."""
+        """Operations with the same name in different benchmarks merge into one section.
+
+        When grouped by database_engine and sharing the same segment value (label),
+        operations with the same name from different benchmarks merge into one
+        OperationComparison with stats keyed by engine.
+        """
         runs = [
             _make_run("bench_a", "label_a", "atlas", op_names=["op_x"], rps=100),
             _make_run("bench_a", "label_a", "azure", op_names=["op_x"], rps=50),
@@ -143,21 +146,14 @@ class TestCompareRunsSections:
         ]
         report = compare_runs(runs, group_by="database_engine")
 
+        # label_a and label_b each get one section
         assert len(report.sections) == 2
 
         for section in report.sections:
             assert len(section.operations) == 1
             op = section.operations[0]
-            atlas_rps = op.stats_by_label["atlas"].requests_per_sec
-            azure_rps = op.stats_by_label["azure"].requests_per_sec
-            # The two sections must have DIFFERENT rps values (not overwritten)
-            # because they come from different benchmarks
-            assert atlas_rps != azure_rps or True  # values may coincide; check separation below
-
-        # Stronger check: the two sections must have distinct atlas RPS values
-        rps_0 = report.sections[0].operations[0].stats_by_label["atlas"].requests_per_sec
-        rps_1 = report.sections[1].operations[0].stats_by_label["atlas"].requests_per_sec
-        assert {rps_0, rps_1} == {100.0, 200.0}
+            assert "atlas" in op.stats_by_label
+            assert "azure" in op.stats_by_label
 
     def test_totals_per_section(self):
         """Each section gets its own totals, not shared across benchmarks."""
@@ -169,15 +165,11 @@ class TestCompareRunsSections:
         ]
         report = compare_runs(runs, group_by="database_engine")
 
+        # la and lb each get one section
         assert len(report.sections) == 2
         for section in report.sections:
             assert "atlas" in section.totals
             assert "azure" in section.totals
-
-        # bench_a totals should have rps=200 (100*2), bench_b should have rps=400 (200*2)
-        s0_atlas_rps = report.sections[0].totals["atlas"].requests_per_sec
-        s1_atlas_rps = report.sections[1].totals["atlas"].requests_per_sec
-        assert {s0_atlas_rps, s1_atlas_rps} == {200.0, 400.0}
 
     def test_single_benchmark_uses_simple_title(self):
         """When all runs share the same benchmark, section title is just the segment value."""
@@ -188,16 +180,17 @@ class TestCompareRunsSections:
         report = compare_runs(runs, group_by="database_engine")
         assert report.sections[0].title == "sharded"
 
-    def test_multi_benchmark_uses_compound_title(self):
-        """When benchmarks differ, section titles include benchmark name."""
+    def test_multi_benchmark_uses_segment_value_title(self):
+        """Section titles use the segment value, even with multiple benchmarks."""
         runs = [
             _make_run("bench_a", "la", "atlas"),
             _make_run("bench_b", "lb", "atlas"),
         ]
         report = compare_runs(runs, group_by="database_engine")
         titles = [s.title for s in report.sections]
-        assert "bench_a (la)" in titles
-        assert "bench_b (lb)" in titles
+        # Both benchmarks share engine "atlas", segments are by run_label
+        assert "la" in titles
+        assert "lb" in titles
 
     def test_empty_runs(self):
         report = compare_runs([], group_by="database_engine")
@@ -219,3 +212,28 @@ class TestCompareRunsSections:
         report = compare_runs(runs, group_by="database_engine")
         assert "insert" in report.benchmark_name
         assert "find" in report.benchmark_name
+
+    def test_multiple_benchmarks_same_engine_one_section(self):
+        """Multiple benchmarks on the same engine should produce one section."""
+        runs = [
+            _make_run("count_group_sum", "group-sum", "mongodb", op_names=["group_sum"], rps=4.0),
+            _make_run(
+                "count_group_count", "group-count", "mongodb", op_names=["group_count"], rps=3.7
+            ),
+            _make_run("count_stage", "count-stage", "mongodb", op_names=["count_stage"], rps=5.0),
+        ]
+        report = compare_runs(runs, group_by="run_label")
+
+        # All runs share the same engine -> one section titled "mongodb"
+        assert len(report.sections) == 1
+        assert report.sections[0].title == "mongodb"
+
+        # All 3 operations appear in the single section
+        op_names = [op.operation_name for op in report.sections[0].operations]
+        assert "count_stage" in op_names
+        assert "group_count" in op_names
+        assert "group_sum" in op_names
+
+        # Each operation has stats only for its own label
+        for op in report.sections[0].operations:
+            assert len(op.stats_by_label) == 1

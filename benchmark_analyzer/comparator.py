@@ -78,19 +78,19 @@ def compare_runs(runs: List[RunResult], group_by: str = "run_label") -> Comparis
     # Collect all labels (the compared dimension)
     labels = sorted({getattr(run, group_by, run.run_label) or "unknown" for run in runs})
 
-    # Group runs into segments: (benchmark_name, segment_value) -> [runs]
-    segment_runs: Dict[tuple, List[RunResult]] = defaultdict(list)
+    # Group runs into segments by the segment_by value (e.g., database engine).
+    # All benchmarks within the same segment are merged into one section so that
+    # a single results table is produced per engine (or per label).
+    segment_runs: Dict[str, List[RunResult]] = defaultdict(list)
     for run in runs:
         seg_val = getattr(run, segment_by, "unknown") or "unknown"
-        key = (run.benchmark_name, seg_val)
-        segment_runs[key].append(run)
+        segment_runs[seg_val].append(run)
 
     # Determine if all segments share the same benchmark name
-    unique_benchmarks = sorted({k[0] for k in segment_runs})
-    single_benchmark = len(unique_benchmarks) == 1
+    unique_benchmarks = sorted({run.benchmark_name for run in runs})
 
     sections: List[ComparisonSection] = []
-    for (bench_name, seg_val), seg_run_list in sorted(segment_runs.items()):
+    for seg_val, seg_run_list in sorted(segment_runs.items()):
         ops_by_name: Dict[str, OperationComparison] = {}
         totals: Dict[str, Optional[RequestStats]] = {}
 
@@ -109,7 +109,7 @@ def compare_runs(runs: List[RunResult], group_by: str = "run_label") -> Comparis
             if run.total_stats:
                 totals[label] = run.total_stats
 
-        title = seg_val if single_benchmark else f"{bench_name} ({seg_val})"
+        title = seg_val
         sections.append(
             ComparisonSection(
                 title=title,
@@ -118,6 +118,7 @@ def compare_runs(runs: List[RunResult], group_by: str = "run_label") -> Comparis
             )
         )
 
+    single_benchmark = len(unique_benchmarks) == 1
     report_name = unique_benchmarks[0] if single_benchmark else ", ".join(unique_benchmarks)
 
     return ComparisonReport(

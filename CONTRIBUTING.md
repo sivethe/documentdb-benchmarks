@@ -138,6 +138,7 @@ All benchmarks extend `MongoUser`, which provides:
 | `self.track_custom_failure(name, exc)` | Report a failure for a custom metric |
 | `self.get_param(key, default)` | Access workload parameters from config |
 | `self.workload_params` | Full workload params dictionary |
+| `self.capture_explain_plan(fn)` | Run a function once after seeding and save its return value as the explain plan |
 
 ### Task Weight Config Pattern
 
@@ -203,6 +204,26 @@ pytest tests/test_insert_benchmarks.py
 pytest -v
 ```
 
+### Explain Plan Capture
+
+For benchmarks that execute **read queries or aggregations**, add explain plan
+capture so the query plan is saved alongside results. This is invaluable for
+investigating performance differences across database engines.
+
+1. Factor the pipeline or query construction into a shared helper method so it
+   is not duplicated between the `@task` method and the explain method.
+2. Define a private method that calls
+   `self.db.command("explain", ..., verbosity="allPlansExecution")` using the
+   shared helper.
+3. Call `self.capture_explain_plan(self._my_explain)` at the end of `on_start()`,
+   **after** `seed_collection()`.
+
+The runner writes the captured plan to `<csv_prefix>_explain.json`. If the
+explain command fails (e.g. unsupported engine), the error is logged and the
+benchmark continues normally.
+
+See `count_group_sum_benchmark.py` for the reference implementation.
+
 ### Testing Guidelines
 
 - **Always run the full test suite (`pytest`) after completing all proposed changes** to verify nothing is broken. Fix any failures before finishing.
@@ -213,7 +234,7 @@ pytest -v
 - **Verify JSON serialisation round-trips** for any dict that will be written with `json.dump`. Non-serialisable types (exceptions, `datetime`, `Path`, custom objects) must be converted to strings or primitives before dumping.
 - Test files live in `tests/` and follow the naming pattern `test_<module>.py`.
 - Use `unittest.mock.MagicMock` to stub MongoDB clients, Locust environments, and stats objects. See existing tests in `tests/test_insert_benchmarks.py` and `tests/test_runner.py` for patterns.
-- Keep class-level state (`_seed_done`, `_extra_seed_done`, `_sharding_error`) reset between tests to ensure isolation.
+- Keep class-level state (`_seed_done`, `_extra_seed_done`, `_sharding_error`, `_explain_done`, `_explain_result`) reset between tests to ensure isolation.
 
 ## Code Style
 

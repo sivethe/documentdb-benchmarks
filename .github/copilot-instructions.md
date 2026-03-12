@@ -62,6 +62,46 @@ for older code.
 - Access workload parameters with `self.get_param("key", default)`.
 - Import document generators from `benchmark_runner.data_generators`.
 - Configuration is attached to the Locust environment as `env.benchmark_config`.
+- For benchmarks that run **read queries or aggregations**, add explain plan
+  capture so the query plan is saved alongside results. See the *Explain Plan
+  Capture* section below.
+
+### Explain Plan Capture
+
+`MongoUser.capture_explain_plan(explain_func)` runs a callable exactly once
+(after seeding) and stores the returned dict. The runner writes it to
+`<csv_prefix>_explain.json` in the results directory.
+
+Pattern:
+1. Define a private method that builds the pipeline/query and calls
+   `self.db.command("explain", ..., verbosity="allPlansExecution")`.
+2. Factor the pipeline/query construction into a shared helper (e.g.
+   `_build_pipeline()`) so the `@task` method and explain method use the
+   same logic.
+3. Call `self.capture_explain_plan(self._my_explain)` at the end of
+   `on_start()`, **after** `seed_collection()`.
+
+Example (from `count_group_sum_benchmark.py`):
+```python
+def _build_pipeline(self):
+    pipeline = []
+    if self.match_filter:
+        pipeline.append({"$match": self.match_filter})
+    pipeline.append({"$group": {"_id": "$category", "count": {"$sum": 1}}})
+    return pipeline
+
+def _explain_group_sum(self) -> dict:
+    return self.db.command(
+        "explain",
+        {"aggregate": self.collection.name,
+         "pipeline": self._build_pipeline(), "cursor": {}},
+        verbosity="allPlansExecution",
+    )
+```
+
+Explain capture is optional and best suited for **read-heavy benchmarks**
+(aggregations, finds, count queries) where the query plan is critical for
+investigating performance. Insert-only benchmarks typically do not need it.
 
 ### Task Weight Config Pattern
 
@@ -182,7 +222,7 @@ Single INI-style config file shared by both `run-local.sh` and `run-aci.sh`. Sec
 
 - **Locust error entries can hold raw `Exception` objects**, not just strings. Always call `str()` on `.error` before writing to JSON or displaying in reports.
 - **Sharding may not be supported by all engines.** The `shardCollection` admin command can fail with `CommandNotFound` on Atlas free-tier, standalone `mongod`, or engines that don't support it. When sharding is requested (`sharded: true` in workload params) and the command fails, the error is stored on the class (`_sharding_error`) and every subsequent task must call `self.fail_if_sharding_error(op_name)` to report failures instead of silently running unsharded.
-- **Class-level flags are shared across users.** `_seed_done`, `_extra_seed_done`, and `_sharding_error` are on the benchmark class, not the instance. Each subclass gets its own copy via `__init_subclass__`, but all instances of the same class share them. Tests must reset these flags before each test case.
+- **Class-level flags are shared across users.** `_seed_done`, `_extra_seed_done`, `_sharding_error`, `_explain_done`, and `_explain_result` are on the benchmark class, not the instance. Each subclass gets its own copy via `__init_subclass__`, but all instances of the same class share them. Tests must reset these flags before each test case.
 - **`json.dump` will raise `TypeError` for any non-primitive type.** Before serialising report dicts, ensure every value is a `str`, `int`, `float`, `bool`, `None`, `list`, or `dict`. Watch for `Exception`, `Path`, `datetime`, and `bytes` objects sneaking into report data.
 
 ## Documentation Checklist for New Benchmarks
@@ -192,9 +232,18 @@ When adding a new benchmark, update **all** of the following so documentation st
 1. **Data generator** (if needed) — If the benchmark requires a new document shape or size, add a generator in `benchmark_runner/data_generators/` following the naming convention `document_<size>[_<trait>].py`. Add tests in `tests/test_insert_common.py` (or a new `test_data_generators.py` file). Update the generators table in this file.
 2. **Benchmark module** — Create the Python file under `benchmark_runner/benchmarks/<category>/` (e.g. `insert_unique_index_benchmark.py`). Include a module-level docstring listing all `workload_params`. Import document generators from `benchmark_runner.data_generators`.
 3. **YAML configs** — Add a base config in `config/<category>/` that inherits from the shared base (e.g. `insert_base.yaml`). Add a `*_sharded.yaml` variant if sharding applies.
-4. **Tests** — Add test classes to the relevant test file in `tests/` (e.g. `tests/test_insert_benchmarks.py`). Cover: index creation, Azure `storageEngine` kwargs, seed-once behaviour, task execution, sharding-error handling, weight params, and task weights.
-5. **README.md** — Update the project-structure tree, the **Insert Benchmark Variants** table (or equivalent table for the benchmark category), and any example commands that reference config paths.
+4. **Tests** — Add test classes to the relevant test file in `tests/` (e.g. `tests/test_insert_benchmarks.py`). Cover: index creation, Azure `storageEngine` kwargs, seed-once behaviour, task execution, sharding-error handling, weight params, task weights, and explain plan capture (if implemented).
+5. **README.md** — Only update if adding a **new benchmark category** (e.g. a new
+   top-level folder under `benchmarks/` or `config/`). Add the folder to the
+   project-structure tree. Do **not** list individual benchmark files or config
+   variants in the README — those are discoverable from the filesystem and YAML
+   inheritance. Update example commands only if they reference changed paths.
 6. **CONTRIBUTING.md** — If the new benchmark introduces a new pattern or category, add or update the relevant guidance section.
-7. **This file (`.github/copilot-instructions.md`)** — If the new benchmark introduces patterns, pitfalls, or conventions not already covered, document them here.
+7. **This file (`.github/copilot-instructions.md`)** — Only update if the new
+   benchmark introduces **new generic patterns, conventions, or pitfalls** that
+   apply broadly. Do **not** add per-benchmark tables, config lists, or variant
+   details here — this file is for framework-level guidance and reference
+   patterns, not an inventory of every benchmark. The insert benchmarks serve as
+   the reference implementation; point to them rather than duplicating details.
 8. **`deploy/pipeline.config`** — Add the new config filename (commented out) under `[benchmarks]` so users can easily enable it.
 9. **Run the full test suite** (`pytest`) and fix any failures before finishing.

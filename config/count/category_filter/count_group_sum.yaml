@@ -1,0 +1,13 @@
+# Count Benchmark — $group + $sum:1 (Category Filter)
+#
+# Filtered variant: counts only documents matching {category: "A"}.
+# Inherits shared settings from the no-filter group_sum config.
+
+inherits: ../no_filter/count_group_sum.yaml
+
+benchmark_name: count_group_sum_category_filter
+run_label: group-sum-category-filter
+
+workload_params:
+  match_filter:
+    category: "A"

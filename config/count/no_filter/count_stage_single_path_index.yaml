@@ -1,0 +1,12 @@
+# Count Benchmark — $count stage (Single Path Index)
+#
+# Variant with a single ascending index on `category`.
+# Inherits shared settings from count_stage.yaml.
+
+inherits: count_stage.yaml
+
+benchmark_name: count_stage_single_path_index
+run_label: count-stage-single-path-index
+
+workload_params:
+  index_type: "category"

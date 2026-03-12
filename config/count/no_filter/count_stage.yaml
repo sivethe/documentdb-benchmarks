@@ -1,0 +1,12 @@
+# Count Benchmark — $count stage
+#
+# Measures aggregation counting performance using the $count pipeline
+# stage, which returns total document count without grouping.
+# Inherits shared settings from count_base.yaml.
+
+inherits: ../count_base.yaml
+
+benchmark_name: count_stage
+benchmark_module: benchmarks.count.count_stage_benchmark
+collection: count_test
+run_label: count-stage-noindex
