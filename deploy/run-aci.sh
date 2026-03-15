@@ -155,7 +155,7 @@ run_benchmark_aci() {
         --azure-file-volume-account-key "$STORAGE_KEY" \
         --azure-file-volume-share-name "$SHARE_NAME" \
         --azure-file-volume-mount-path /app/results \
-        --command-line "bench-run --config config/$config_basename --mongodb-url '$mongodb_url' --database-engine '$engine_name' --output-dir results $EXTRA_ARGS" \
+        --command-line "bench-run --config config/$config_basename --mongodb-url '$mongodb_url' --database-engine '$engine_name' --output-dir results $CONCURRENCY_ARGS $EXTRA_ARGS" \
         --location "$ACI_LOCATION" \
         -o none
 

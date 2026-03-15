@@ -3,7 +3,7 @@
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from benchmark_runner.config import BenchmarkConfig
 from benchmark_runner.runner import (
@@ -11,6 +11,7 @@ from benchmark_runner.runner import (
     _mask_url,
     _save_explain_plans,
     _save_indexes,
+    _wait_for_setup_complete,
 )
 
 
@@ -282,3 +283,68 @@ class TestSaveIndexes:
         out = tmp_path / "my_bench_getIndexes.json"
         data = json.loads(out.read_text())
         assert "2026" in data[0]["ts"]
+
+
+# ---------------------------------------------------------------------------
+# _wait_for_setup_complete
+# ---------------------------------------------------------------------------
+
+
+class TestWaitForSetupComplete:
+    """Verify _wait_for_setup_complete checks both _seed_done and _warmup_done."""
+
+    @patch("benchmark_runner.runner.gevent.sleep")
+    def test_returns_immediately_when_both_done(self, mock_sleep):
+        cls = MagicMock()
+        cls._seed_done = True
+        cls._warmup_done = True
+
+        elapsed = _wait_for_setup_complete([cls], timeout=5)
+
+        assert elapsed >= 0
+        mock_sleep.assert_not_called()
+
+    @patch("benchmark_runner.runner.gevent.sleep")
+    def test_waits_when_seed_done_but_warmup_not(self, mock_sleep):
+        """Runner must wait for warmup even if seeding is complete."""
+        cls = MagicMock()
+        cls._seed_done = True
+        cls._warmup_done = False
+
+        # Simulate warmup completing after first sleep
+        def complete_warmup(seconds):
+            cls._warmup_done = True
+
+        mock_sleep.side_effect = complete_warmup
+
+        elapsed = _wait_for_setup_complete([cls], timeout=5)
+
+        assert elapsed >= 0
+        mock_sleep.assert_called_once()
+
+    @patch("benchmark_runner.runner.gevent.sleep")
+    def test_waits_when_warmup_done_but_seed_not(self, mock_sleep):
+        """Runner must wait for seeding even if warmup flag is set."""
+        cls = MagicMock()
+        cls._seed_done = False
+        cls._warmup_done = True
+
+        def complete_seed(seconds):
+            cls._seed_done = True
+
+        mock_sleep.side_effect = complete_seed
+
+        elapsed = _wait_for_setup_complete([cls], timeout=5)
+
+        assert elapsed >= 0
+        mock_sleep.assert_called_once()
+
+    @patch("benchmark_runner.runner.gevent.sleep")
+    def test_defaults_to_true_when_attrs_missing(self, mock_sleep):
+        """Classes without _seed_done or _warmup_done are treated as ready."""
+        cls = MagicMock(spec=[])  # no attributes
+
+        elapsed = _wait_for_setup_complete([cls], timeout=5)
+
+        assert elapsed >= 0
+        mock_sleep.assert_not_called()

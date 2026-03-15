@@ -62,6 +62,8 @@ class MongoUser(User):
         cls._explain_done = False
         cls._explain_result: Optional[dict] = None
         cls._indexes_result: Optional[List[dict]] = None
+        cls._warmup_lock = threading.Lock()
+        cls._warmup_done = False
 
     def __init__(self, environment):
         super().__init__(environment)
@@ -139,9 +141,8 @@ class MongoUser(User):
 
             seed_func()
 
-            # Wait for any async index builds to finish, then snapshot indexes.
+            # Wait for any async index builds to finish.
             self._wait_for_index_builds()
-            self._capture_indexes()
 
             self.__class__._seed_done = True
             logger.info(
@@ -279,6 +280,37 @@ class MongoUser(User):
         except Exception as exc:
             logger.error("Failed to shard collection %s: %s", namespace, exc)
             self.__class__._sharding_error = f"shardCollection failed for {namespace}: {exc}"
+
+    def run_warmup(self, warmup_func: Optional[Callable[[], None]] = None) -> None:
+        """Run warmup actions exactly once, after seeding, before measurement.
+
+        The warmup phase executes after ``seed_collection()`` and before
+        the runner resets Locust stats.  Any operations performed here
+        (index snapshots, explain plans, cache-warming queries, etc.)
+        are guaranteed to be excluded from measured results.
+
+        The base implementation always captures the current index list
+        via ``list_indexes()``.  Pass an optional *warmup_func* to
+        perform additional one-time actions such as
+        ``capture_explain_plan()``.
+
+        Call this at the end of ``on_start()``, **after**
+        ``seed_collection()``.
+
+        Args:
+            warmup_func: Optional callable that performs additional
+                         warmup actions (e.g. explain plan capture).
+                         Called exactly once across all concurrent
+                         users of the same benchmark class.
+        """
+        with self.__class__._warmup_lock:
+            if self.__class__._warmup_done:
+                return
+            self._capture_indexes()
+            if warmup_func:
+                warmup_func()
+            self.__class__._warmup_done = True
+            logger.info("Warmup complete for %s", self.__class__.__name__)
 
     def capture_explain_plan(self, explain_func: Callable[[], dict]) -> None:
         """Run an explain function exactly once and store its output.

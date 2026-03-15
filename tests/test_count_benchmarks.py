@@ -54,6 +54,7 @@ def _reset_class(cls):
     cls._explain_done = False
     cls._explain_result = None
     cls._indexes_result = None
+    cls._warmup_done = False
 
 
 def _make_user(cls, env):
@@ -1018,3 +1019,73 @@ class TestCountStageExplain:
 
         assert CountStageBenchmarkUser._explain_done is True
         assert CountStageBenchmarkUser._explain_result is None
+
+
+# ===========================================================================
+# Warmup phase — all count benchmarks
+# ===========================================================================
+
+
+class TestCountWarmupPhase:
+    """Verify run_warmup() sets _warmup_done and captures indexes."""
+
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_warmup_sets_done_flag_group_sum(self, mock_client_cls):
+        mock_client, _, _ = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment({"seed_docs": 10})
+        user = _make_user(CountGroupSumBenchmarkUser, env)
+        user.on_start()
+
+        assert CountGroupSumBenchmarkUser._warmup_done is True
+
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_warmup_sets_done_flag_group_count(self, mock_client_cls):
+        mock_client, _, _ = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment({"seed_docs": 10})
+        user = _make_user(CountGroupCountBenchmarkUser, env)
+        user.on_start()
+
+        assert CountGroupCountBenchmarkUser._warmup_done is True
+
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_warmup_sets_done_flag_count_stage(self, mock_client_cls):
+        mock_client, _, _ = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment({"seed_docs": 10})
+        user = _make_user(CountStageBenchmarkUser, env)
+        user.on_start()
+
+        assert CountStageBenchmarkUser._warmup_done is True
+
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_warmup_captures_indexes(self, mock_client_cls):
+        mock_client, _, mock_collection = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment({"seed_docs": 10})
+        user = _make_user(CountGroupSumBenchmarkUser, env)
+        user.on_start()
+
+        assert CountGroupSumBenchmarkUser._indexes_result is not None
+        mock_collection.list_indexes.assert_called_once()
+
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_warmup_runs_only_once(self, mock_client_cls):
+        mock_client, _, mock_collection = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment({"seed_docs": 10})
+        user1 = _make_user(CountGroupSumBenchmarkUser, env)
+        user1.on_start()
+
+        mock_collection.list_indexes.reset_mock()
+        user2 = CountGroupSumBenchmarkUser(env)
+        user2.on_start()
+
+        # list_indexes should not be called again for the second user
+        mock_collection.list_indexes.assert_not_called()

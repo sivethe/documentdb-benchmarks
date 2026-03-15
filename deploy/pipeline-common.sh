@@ -15,6 +15,10 @@
 #   RESULTS_RUN_DIR       Timestamped run directory
 #   CPU                   CPU cores
 #   MEMORY                Memory limit
+#   USERS                 Locust concurrent users (empty = YAML default)
+#   SPAWN_RATE            Locust spawn rate (empty = YAML default)
+#   RUN_TIME              Locust run duration (empty = YAML default)
+#   CONCURRENCY_ARGS      CLI flags built from USERS/SPAWN_RATE/RUN_TIME
 #   IMAGE_NAME            Docker image name
 #   IMAGE_TAG             Docker image tag
 #   ENGINE_NAMES[]        Array of database engine names
@@ -38,6 +42,11 @@ IMAGE_NAME="documentdb-benchmarks"
 IMAGE_TAG="latest"
 CPU="2"
 MEMORY="4g"
+
+# Locust concurrency defaults (empty = use YAML config defaults)
+USERS=""
+SPAWN_RATE=""
+RUN_TIME=""
 
 # Docker defaults
 DOCKER_NETWORK="auto"
@@ -138,6 +147,9 @@ parse_pipeline_config() {
                     memory)         MEMORY="$value" ;;
                     results_dir)    RESULTS_LOCAL="$value" ;;
                     extra_args)     EXTRA_ARGS="$value" ;;
+                    users)          USERS="$value" ;;
+                    spawn_rate)     SPAWN_RATE="$value" ;;
+                    run_time)       RUN_TIME="$value" ;;
                     *)              echo "WARNING: unknown global key: $key" ;;
                 esac
                 ;;
@@ -146,6 +158,22 @@ parse_pipeline_config() {
                 ;;
         esac
     done < "$config_file"
+}
+
+# ---------- build concurrency args ----------
+# Builds CLI arguments for bench-run from pipeline concurrency settings.
+# Only includes flags that are explicitly set (non-empty).
+build_concurrency_args() {
+    CONCURRENCY_ARGS=""
+    if [[ -n "$USERS" ]]; then
+        CONCURRENCY_ARGS+="--users $USERS "
+    fi
+    if [[ -n "$SPAWN_RATE" ]]; then
+        CONCURRENCY_ARGS+="--spawn-rate $SPAWN_RATE "
+    fi
+    if [[ -n "$RUN_TIME" ]]; then
+        CONCURRENCY_ARGS+="--run-time $RUN_TIME "
+    fi
 }
 
 # ---------- validate config ----------
@@ -294,5 +322,6 @@ parse_pipeline_args() {
     parse_pipeline_config "$PIPELINE_CONFIG"
     validate_pipeline_config
     extract_config_basenames
+    build_concurrency_args
     compute_run_dir
 }

@@ -1,9 +1,9 @@
 # Count Benchmark — $group + $count:{} (Wildcard Index + Category Filter)
 #
 # Filtered variant: counts only documents matching {category: "A"}.
-# Inherits shared settings from the no-filter wildcard index config.
+# Imports shared settings from the no-filter wildcard index config.
 
-inherits: ../no_filter/count_group_count_wildcard_index.yaml
+imports: ../no_filter/count_group_count_wildcard_index.yaml
 
 benchmark_name: count_group_count_wildcard_index_category_filter
 run_label: group-count-wildcard-index-category-filter

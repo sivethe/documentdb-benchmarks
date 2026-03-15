@@ -57,7 +57,7 @@ run_benchmark() {
         --mongodb-url "$mongodb_url" \
         --database-engine "$engine_name" \
         --output-dir "$engine_results_dir" \
-        $EXTRA_ARGS
+        $CONCURRENCY_ARGS $EXTRA_ARGS
 
     local exit_code=$?
     if [[ $exit_code -eq 0 ]]; then

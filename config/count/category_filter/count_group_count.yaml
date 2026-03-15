@@ -1,9 +1,9 @@
 # Count Benchmark — $group + $count:{} (Category Filter)
 #
 # Filtered variant: counts only documents matching {category: "A"}.
-# Inherits shared settings from the no-filter group_count config.
+# Imports shared settings from the no-filter group_count config.
 
-inherits: ../no_filter/count_group_count.yaml
+imports: ../no_filter/count_group_count.yaml
 
 benchmark_name: count_group_count_category_filter
 run_label: group-count-category-filter

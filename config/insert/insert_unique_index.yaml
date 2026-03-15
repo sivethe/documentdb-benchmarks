@@ -2,9 +2,9 @@
 #
 # Measures insert throughput with a unique ascending index on the timestamp field.
 # This captures the overhead of duplicate-key checks during inserts.
-# Inherits shared settings from insert_base.yaml.
+# Imports shared settings from insert_base.yaml.
 
-inherits: insert_base.yaml
+imports: insert_base.yaml
 
 benchmark_name: insert_unique_index
 benchmark_module: benchmarks.insert.insert_unique_index_benchmark

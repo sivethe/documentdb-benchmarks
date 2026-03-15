@@ -156,6 +156,12 @@ cpu=2
 memory=4g
 results_dir=./results
 
+# Locust concurrency overrides (optional).
+# When set, these override the per-benchmark YAML config values.
+# users=10
+# spawn_rate=5
+# run_time=60s
+
 # Docker-specific
 [docker]
 network=auto
@@ -195,7 +201,7 @@ Results are organized by engine under a timestamped run directory:
 | `run_time` | `--run-time` / `-t` | `60s` | Test duration (`60s`, `5m`, `1h`) |
 | `output_dir` | `--output-dir` / `-o` | `results` | Output directory |
 | `workload_params` | _(config only)_ | `{}` | Benchmark-specific parameters |
-| `inherits` | _(config only)_ | _(none)_ | Parent config file (relative path); values are deep-merged |
+| `imports` | _(config only)_ | _(none)_ | Parent config file (relative path); values are deep-merged |
 
 ### Benchmark-Specific Parameters
 

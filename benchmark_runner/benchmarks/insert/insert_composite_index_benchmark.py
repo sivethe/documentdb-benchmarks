@@ -37,6 +37,7 @@ class InsertCompositeIndexBenchmarkUser(MongoUser):
         self.insert_one_weight = self.get_param("insert_one_weight", 3)
         self.insert_many_weight = self.get_param("insert_many_weight", 1)
         self.seed_collection(self._create_index, drop=self.get_param("drop_on_start", True))
+        self.run_warmup()
 
     def _create_index(self):
         """Create a composite ascending index on ``category`` + ``timestamp``."""

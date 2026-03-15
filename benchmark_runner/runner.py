@@ -41,11 +41,11 @@ def _mask_url(url: str) -> str:
 
 
 def _wait_for_setup_complete(user_classes: list, timeout: int = 600) -> float:
-    """Wait for all benchmark user classes to finish their seeding phase.
+    """Wait for all benchmark user classes to finish seeding and warmup.
 
-    Polls ``_seed_done`` on each user class until all report ``True`` or
-    the *timeout* is reached.  Returns the number of seconds spent
-    waiting so callers can log how long setup took.
+    Polls ``_seed_done`` and ``_warmup_done`` on each user class until
+    all report ``True`` or the *timeout* is reached.  Returns the number
+    of seconds spent waiting so callers can log how long setup took.
 
     Args:
         user_classes: Locust User subclasses discovered for this run.
@@ -54,10 +54,13 @@ def _wait_for_setup_complete(user_classes: list, timeout: int = 600) -> float:
     Returns:
         Elapsed seconds spent waiting for setup.
     """
-    logger.info("Waiting for benchmark setup (seeding / index creation) to complete...")
+    logger.info("Waiting for benchmark setup (seeding / warmup) to complete...")
     start = time.monotonic()
     while time.monotonic() - start < timeout:
-        if all(getattr(cls, "_seed_done", True) for cls in user_classes):
+        if all(
+            getattr(cls, "_seed_done", True) and getattr(cls, "_warmup_done", True)
+            for cls in user_classes
+        ):
             elapsed = time.monotonic() - start
             logger.info("Benchmark setup complete (%.1fs)", elapsed)
             return elapsed

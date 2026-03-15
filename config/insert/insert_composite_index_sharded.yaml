@@ -1,8 +1,8 @@
 # Insert Benchmark — Composite Index (Sharded)
 #
-# Sharded variant: inherits from insert_composite_index.yaml and enables sharding.
+# Sharded variant: imports from insert_composite_index.yaml and enables sharding.
 
-inherits: insert_composite_index.yaml
+imports: insert_composite_index.yaml
 
 benchmark_name: insert_composite_index_sharded
 run_label: composite-index-sharded

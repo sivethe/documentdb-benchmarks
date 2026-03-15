@@ -44,6 +44,10 @@ class CountStageBenchmarkUser(MongoUser):
         self.index_type = self.get_param("index_type", "none")
         self.match_filter = self.get_param("match_filter", None)
         self.seed_collection(self._seed_and_index, drop=self.get_param("drop_on_start", True))
+        self.run_warmup(self._warmup)
+
+    def _warmup(self):
+        """Capture the explain plan during the warmup phase."""
         self.capture_explain_plan(self._explain_count_stage)
 
     def _seed_and_index(self):

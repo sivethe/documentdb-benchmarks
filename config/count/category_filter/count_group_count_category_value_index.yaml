@@ -1,9 +1,9 @@
 # Count Benchmark — $group + $count:{} (Category+Value Index + Category Filter)
 #
 # Filtered variant: counts only documents matching {category: "A"}.
-# Inherits shared settings from the no-filter category_value index config.
+# Imports shared settings from the no-filter category_value index config.
 
-inherits: ../no_filter/count_group_count_category_value_index.yaml
+imports: ../no_filter/count_group_count_category_value_index.yaml
 
 benchmark_name: count_group_count_category_value_index_category_filter
 run_label: group-count-category-value-index-category-filter

@@ -55,6 +55,7 @@ def _reset_class(cls):
     cls._explain_done = False
     cls._explain_result = None
     cls._indexes_result = None
+    cls._warmup_done = False
 
 
 def _make_user(cls, env):
@@ -836,3 +837,83 @@ class TestCaptureIndexes:
         user.on_start()
 
         assert InsertSinglePathIndexBenchmarkUser._indexes_result is None
+
+
+# ===========================================================================
+# Warmup phase — insert benchmarks
+# ===========================================================================
+
+
+class TestInsertWarmupPhase:
+    """Verify run_warmup() sets _warmup_done for insert benchmarks."""
+
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_warmup_sets_done_flag_no_index(self, mock_client_cls):
+        mock_client, _, _ = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment()
+        user = _make_user(InsertNoIndexBenchmarkUser, env)
+        user.on_start()
+
+        assert InsertNoIndexBenchmarkUser._warmup_done is True
+
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_warmup_sets_done_flag_single_path(self, mock_client_cls):
+        mock_client, _, _ = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment()
+        user = _make_user(InsertSinglePathIndexBenchmarkUser, env)
+        user.on_start()
+
+        assert InsertSinglePathIndexBenchmarkUser._warmup_done is True
+
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_warmup_sets_done_flag_wildcard(self, mock_client_cls):
+        mock_client, _, _ = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment()
+        user = _make_user(InsertWildcardIndexBenchmarkUser, env)
+        user.on_start()
+
+        assert InsertWildcardIndexBenchmarkUser._warmup_done is True
+
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_warmup_sets_done_flag_composite(self, mock_client_cls):
+        mock_client, _, _ = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment()
+        user = _make_user(InsertCompositeIndexBenchmarkUser, env)
+        user.on_start()
+
+        assert InsertCompositeIndexBenchmarkUser._warmup_done is True
+
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_warmup_sets_done_flag_unique(self, mock_client_cls):
+        mock_client, _, _ = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment()
+        user = _make_user(InsertUniqueIndexBenchmarkUser, env)
+        user.on_start()
+
+        assert InsertUniqueIndexBenchmarkUser._warmup_done is True
+
+    @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
+    def test_warmup_runs_only_once(self, mock_client_cls):
+        mock_client, _, mock_collection = _setup_mock_mongo()
+        mock_client_cls.return_value = mock_client
+
+        env = _make_mock_environment()
+        user1 = _make_user(InsertNoIndexBenchmarkUser, env)
+        user1.on_start()
+
+        mock_collection.list_indexes.reset_mock()
+        user2 = InsertNoIndexBenchmarkUser(env)
+        user2.on_start()
+
+        # list_indexes should not be called again for the second user
+        mock_collection.list_indexes.assert_not_called()

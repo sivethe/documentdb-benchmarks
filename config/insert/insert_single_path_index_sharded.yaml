@@ -1,8 +1,8 @@
 # Insert Benchmark — Single-Path Ascending Index (Sharded)
 #
-# Sharded variant: inherits from insert_single_path_index.yaml and enables sharding.
+# Sharded variant: imports from insert_single_path_index.yaml and enables sharding.
 
-inherits: insert_single_path_index.yaml
+imports: insert_single_path_index.yaml
 
 benchmark_name: insert_single_path_index_sharded
 run_label: single-path-index-sharded

@@ -36,7 +36,7 @@ class TestDeepMerge:
         assert override["wp"].get("x") is None
 
 
-# ---------- load_config with inherits ----------
+# ---------- load_config with imports ----------
 
 
 class TestLoadConfigInheritance:
@@ -56,7 +56,7 @@ class TestLoadConfigInheritance:
         child = tmp_path / "child.yaml"
         child.write_text(
             textwrap.dedent("""\
-            inherits: parent.yaml
+            imports: parent.yaml
             benchmark_name: child_bench
             workload_params:
               sharded: true
@@ -87,7 +87,7 @@ class TestLoadConfigInheritance:
         parent = tmp_path / "parent.yaml"
         parent.write_text(
             textwrap.dedent("""\
-            inherits: grandparent.yaml
+            imports: grandparent.yaml
             benchmark_name: parent
             workload_params:
               b: 20
@@ -98,7 +98,7 @@ class TestLoadConfigInheritance:
         child = tmp_path / "child.yaml"
         child.write_text(
             textwrap.dedent("""\
-            inherits: parent.yaml
+            imports: parent.yaml
             benchmark_name: child
             workload_params:
               c: 300
@@ -114,30 +114,30 @@ class TestLoadConfigInheritance:
     def test_circular_inheritance_raises(self, tmp_path):
         a = tmp_path / "a.yaml"
         b = tmp_path / "b.yaml"
-        a.write_text("inherits: b.yaml\nname: a\n")
-        b.write_text("inherits: a.yaml\nname: b\n")
+        a.write_text("imports: b.yaml\nname: a\n")
+        b.write_text("imports: a.yaml\nname: b\n")
 
-        with pytest.raises(ValueError, match="Circular config inheritance"):
+        with pytest.raises(ValueError, match="Circular config imports"):
             load_config(str(a))
 
-    def test_no_inherits_key(self, tmp_path):
+    def test_no_imports_key(self, tmp_path):
         cfg = tmp_path / "standalone.yaml"
         cfg.write_text("benchmark_name: solo\nusers: 42\n")
 
         result = load_config(str(cfg))
         assert result == {"benchmark_name": "solo", "users": 42}
 
-    def test_inherits_key_not_in_result(self, tmp_path):
+    def test_imports_key_not_in_result(self, tmp_path):
         parent = tmp_path / "parent.yaml"
         parent.write_text("benchmark_name: p\n")
 
         child = tmp_path / "child.yaml"
-        child.write_text("inherits: parent.yaml\nbenchmark_name: c\n")
+        child.write_text("imports: parent.yaml\nbenchmark_name: c\n")
 
         result = load_config(str(child))
-        assert "inherits" not in result
+        assert "imports" not in result
 
-    def test_subdirectory_inherits(self, tmp_path):
+    def test_subdirectory_imports(self, tmp_path):
         """Child in a subdirectory can reference parent via relative path."""
         parent = tmp_path / "parent.yaml"
         parent.write_text("benchmark_name: p\nusers: 7\n")
@@ -145,7 +145,7 @@ class TestLoadConfigInheritance:
         subdir = tmp_path / "sub"
         subdir.mkdir()
         child = subdir / "child.yaml"
-        child.write_text("inherits: ../parent.yaml\nbenchmark_name: c\n")
+        child.write_text("imports: ../parent.yaml\nbenchmark_name: c\n")
 
         result = load_config(str(child))
         assert result["benchmark_name"] == "c"
@@ -173,7 +173,7 @@ class TestBuildConfigWithInheritance:
         child = tmp_path / "child.yaml"
         child.write_text(
             textwrap.dedent("""\
-            inherits: parent.yaml
+            imports: parent.yaml
             benchmark_name: sharded_bench
             workload_params:
               sharded: true

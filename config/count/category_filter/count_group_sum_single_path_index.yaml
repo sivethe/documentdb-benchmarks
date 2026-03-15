@@ -1,9 +1,9 @@
 # Count Benchmark — $group + $sum:1 (Single Path Index + Category Filter)
 #
 # Filtered variant: counts only documents matching {category: "A"}.
-# Inherits shared settings from the no-filter single path index config.
+# Imports shared settings from the no-filter single path index config.
 
-inherits: ../no_filter/count_group_sum_single_path_index.yaml
+imports: ../no_filter/count_group_sum_single_path_index.yaml
 
 benchmark_name: count_group_sum_single_path_index_category_filter
 run_label: group-sum-single-path-index-category-filter
