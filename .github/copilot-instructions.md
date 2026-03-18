@@ -1,5 +1,23 @@
 # Copilot Instructions for documentdb-benchmarks
 
+## Important References
+
+**Before writing or modifying benchmarks, read `CONTRIBUTING.md`** — it is the
+canonical source for:
+- Writing benchmarks (MongoUser base class, `on_start()` lifecycle, `seed_collection`, `run_warmup`)
+- Warmup phase and explain plan capture patterns
+- Task weight config pattern
+- Data generators (naming conventions, existing generators table)
+- Configuration and config imports
+- Testing guidelines and test patterns
+- Code style
+- Common pitfalls
+- Documentation checklist for new benchmarks
+
+Do **not** duplicate CONTRIBUTING.md content here. If a pattern or convention
+applies to benchmark authoring, testing, or common pitfalls, it belongs in
+CONTRIBUTING.md.
+
 ## Project Overview
 
 This is a Python benchmark framework for MongoDB-compatible databases (MongoDB, Atlas, Azure DocumentDB, AWS DocumentDB) using [Locust](https://locust.io/). It has two main packages:
@@ -28,68 +46,22 @@ Benchmarks run Locust **programmatically** via `locust.env.Environment`, not via
 
 ### Data Generators
 
-Reusable document-generation helpers live in **`benchmark_runner/data_generators/`** so
-they can be shared across multiple benchmark categories (insert, update, read, etc.).
-
-**Naming convention:** `document_<size><unit>[_<characteristic>].py`
-
-- The file name **must** start with `document_` followed by the target document
-  size and unit (e.g. `256byte`, `1kb`, `4kb`).
-- If the generator produces documents with a specific trait beyond size, append a
-  descriptor after the size: e.g. `document_4kb_nested.py`,
-  `document_1kb_arrays.py`.
-- Each module exposes a `generate_document(size_bytes: int = <default>) -> dict`
-  function with a Google-style docstring.
-
-Existing generators:
-
-| Module | Default size | Description |
-|--------|-------------|-------------|
-| `document_256byte.py` | 256 B | Standard flat schema (`_id`, `timestamp`, `category`, `value`, `counter`, optional `payload` padding) |
-
-Benchmarks import directly from the canonical path:
-```python
-from benchmark_runner.data_generators.document_256byte import generate_document
-```
-A backward-compatible re-export exists in `benchmark_runner.benchmarks.insert.insert_common`
-for older code.
+Reusable document-generation helpers live in **`benchmark_runner/data_generators/`**.
+See CONTRIBUTING.md for naming conventions, the generators table, and import patterns.
 
 ### Writing Benchmarks
 
-- Create a new file under `benchmark_runner/benchmarks/`.
-- Subclass `MongoUser` from `benchmark_runner.base_benchmark`.
-- Use `@task` decorators and `self.timed_operation("operation_name")` context manager to time operations.
-- Access workload parameters with `self.get_param("key", default)`.
-- Import document generators from `benchmark_runner.data_generators`.
-- Configuration is attached to the Locust environment as `env.benchmark_config`.
-
-### Task Weight Config Pattern
-
-When a benchmark defines multiple `@task` methods, each task **must** expose a
-configurable weight via `workload_params` so users can selectively enable or
-disable individual tasks from the YAML config without editing Python code.
-
-Pattern:
-1. Define a `<task_name>_weight` workload param with a sensible non-zero default.
-2. Read it in `on_start()`: `self.<task_name>_weight = self.get_param("<task_name>_weight", <default>)`.
-3. At the top of the `@task` method, return early if weight is 0:
-   ```python
-   @task(3)
-   def my_task(self):
-       if self.my_task_weight == 0:
-           return
-       ...
-   ```
-4. Document the weight params in the base YAML config and in the module docstring.
-
-Setting a weight to `0` effectively disables the task. This lets users run a
-subset of tasks (e.g. only `insert_one` or only `insert_many`) purely via config.
-See the insert benchmarks for the reference implementation.
+See CONTRIBUTING.md for the full guide on writing benchmarks, including:
+- `MongoUser` base class API
+- Warmup phase (`run_warmup`)
+- Explain plan capture (`capture_explain_plan`)
+- Task weight config pattern
+- Data generator usage
 
 ### Configuration
 
 - YAML config files in `config/` are the primary config mechanism for individual benchmarks.
-- **Config inheritance**: a YAML config can set `inherits: parent.yaml` (path relative to the child file) to inherit all values from a parent config. The child only needs to specify overrides. Nested dicts like `workload_params` are deep-merged (not replaced). Chained inheritance is supported; circular references are detected.
+- **Config imports**: a YAML config can set `imports: parent.yaml` (path relative to the child file) to import all values from a parent config. The child only needs to specify overrides. Nested dicts like `workload_params` are deep-merged (not replaced). Chained imports are supported; circular references are detected.
 - CLI arguments override YAML values.
 - `BenchmarkConfig` dataclass in `config.py` holds all settings.
 - Unknown YAML keys are passed through as `workload_params`.
@@ -125,10 +97,9 @@ ruff check .
 
 ## Code Style
 
+See CONTRIBUTING.md for the full code style guide. Key points:
 - Python 3.9+ compatible (no `X | Y` union syntax; use `Optional[X]` and `Union`).
-- Type hints on all public functions.
-- Docstrings on all public classes and functions (Google style).
-- Line length: 100 characters.
+- Formatter/Linter: **Ruff**. Line length: **100**.
 - Use `dataclass` for config/data structures.
 - Use `pathlib.Path` for file paths.
 
@@ -146,7 +117,7 @@ ruff check .
 
 Single INI-style config file shared by both `run-local.sh` and `run-aci.sh`. Sections:
 
-- **(top-level)** — Global settings: `cpu`, `memory`, `results_dir`, `extra_args`.
+- **(top-level)** — Global settings: `cpu`, `memory`, `results_dir`, `extra_args`, and Locust concurrency overrides (`users`, `spawn_rate`, `run_time`).
 - **`[docker]`** — Docker-specific: `network` (auto-detected if `auto`), `skip_build`.
 - **`[aci]`** — ACI-specific: `resource_group`, `location`, `acr_name`, `cleanup`.
 - **`[database_engines]`** — `engine_name=connection_string` pairs. Benchmarks run serially against each engine.
@@ -168,33 +139,23 @@ Single INI-style config file shared by both `run-local.sh` and `run-aci.sh`. Sec
 
 ## Testing Guidelines
 
-- **Always run the full test suite (`pytest`) after completing all proposed changes** to verify nothing is broken. Fix any failures before finishing.
-- **Write tests for failure/error scenarios**, not just the happy path. Examples:
-  - Operations that receive `Exception` objects instead of strings (e.g., Locust stats `.error` field may hold raw exception objects — ensure they are converted with `str()` before serialisation).
-  - Setup steps that fail (e.g., `shardCollection` command not supported) — verify that downstream tasks handle the failure gracefully.
-  - `None` values in stats fields (e.g., `min_response_time` when there are zero requests).
-- **Verify JSON serialisation round-trips** for any dict that will be written with `json.dump`. Non-serialisable types (exceptions, `datetime`, `Path`, custom objects) must be converted to strings or primitives before dumping.
-- Test files live in `tests/` and follow the naming pattern `test_<module>.py`.
-- Use `unittest.mock.MagicMock` to stub MongoDB clients, Locust environments, and stats objects. See existing tests in `tests/test_insert_benchmark.py` and `tests/test_runner.py` for patterns.
-- Keep class-level state (`_seed_done`, `_extra_seed_done`, `_sharding_error`) reset between tests to ensure isolation.
+See CONTRIBUTING.md for the complete testing guidelines and test patterns.
+
+- **Always run the full test suite (`pytest`) after completing all proposed changes.**
+- Keep class-level state (`_seed_done`, `_extra_seed_done`, `_sharding_error`, `_warmup_done`) reset between tests to ensure isolation.
 
 ## Common Pitfalls
 
-- **Locust error entries can hold raw `Exception` objects**, not just strings. Always call `str()` on `.error` before writing to JSON or displaying in reports.
-- **Sharding may not be supported by all engines.** The `shardCollection` admin command can fail with `CommandNotFound` on Atlas free-tier, standalone `mongod`, or engines that don't support it. When sharding is requested (`sharded: true` in workload params) and the command fails, the error is stored on the class (`_sharding_error`) and every subsequent task must call `self.fail_if_sharding_error(op_name)` to report failures instead of silently running unsharded.
-- **Class-level flags are shared across users.** `_seed_done`, `_extra_seed_done`, and `_sharding_error` are on the benchmark class, not the instance. Each subclass gets its own copy via `__init_subclass__`, but all instances of the same class share them. Tests must reset these flags before each test case.
-- **`json.dump` will raise `TypeError` for any non-primitive type.** Before serialising report dicts, ensure every value is a `str`, `int`, `float`, `bool`, `None`, `list`, or `dict`. Watch for `Exception`, `Path`, `datetime`, and `bytes` objects sneaking into report data.
+See CONTRIBUTING.md for the full list. Key items for AI-assisted development:
+- **Events must fire on `self.environment.events`**, NOT on the global `locust.events` module.
+- **`json.dump` will raise `TypeError` for any non-primitive type.** Watch for `Exception`, `Path`, `datetime` objects.
+- **Class-level flags are shared across users.** Tests must reset these flags before each test case.
 
 ## Documentation Checklist for New Benchmarks
 
-When adding a new benchmark, update **all** of the following so documentation stays in sync:
-
-1. **Data generator** (if needed) — If the benchmark requires a new document shape or size, add a generator in `benchmark_runner/data_generators/` following the naming convention `document_<size>[_<trait>].py`. Add tests in `tests/test_insert_common.py` (or a new `test_data_generators.py` file). Update the generators table in this file.
-2. **Benchmark module** — Create the Python file under `benchmark_runner/benchmarks/<category>/` (e.g. `insert_unique_index_benchmark.py`). Include a module-level docstring listing all `workload_params`. Import document generators from `benchmark_runner.data_generators`.
-3. **YAML configs** — Add a base config in `config/<category>/` that inherits from the shared base (e.g. `insert_base.yaml`). Add a `*_sharded.yaml` variant if sharding applies.
-4. **Tests** — Add test classes to the relevant test file in `tests/` (e.g. `tests/test_insert_benchmarks.py`). Cover: index creation, Azure `storageEngine` kwargs, seed-once behaviour, task execution, sharding-error handling, weight params, and task weights.
-5. **README.md** — Update the project-structure tree, the **Insert Benchmark Variants** table (or equivalent table for the benchmark category), and any example commands that reference config paths.
-6. **CONTRIBUTING.md** — If the new benchmark introduces a new pattern or category, add or update the relevant guidance section.
-7. **This file (`.github/copilot-instructions.md`)** — If the new benchmark introduces patterns, pitfalls, or conventions not already covered, document them here.
-8. **`deploy/pipeline.config`** — Add the new config filename (commented out) under `[benchmarks]` so users can easily enable it.
-9. **Run the full test suite** (`pytest`) and fix any failures before finishing.
+See CONTRIBUTING.md for the full checklist. In addition:
+- **This file (`.github/copilot-instructions.md`)** — Only update if the new
+  benchmark introduces **new generic patterns, conventions, or pitfalls** that
+  apply broadly. Do **not** add per-benchmark tables, config lists, or variant
+  details here — this file is for framework-level guidance and reference
+  patterns, not an inventory of every benchmark.

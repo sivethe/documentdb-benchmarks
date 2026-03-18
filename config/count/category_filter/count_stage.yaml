@@ -1,0 +1,13 @@
+# Count Benchmark — $count stage (Category Filter)
+#
+# Filtered variant: counts only documents matching {category: "A"}.
+# Imports shared settings from the no-filter count_stage config.
+
+imports: ../no_filter/count_stage.yaml
+
+benchmark_name: count_stage_category_filter
+run_label: count-stage-category-filter
+
+workload_params:
+  match_filter:
+    category: "A"

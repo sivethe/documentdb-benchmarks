@@ -1,8 +1,8 @@
 # Insert Benchmark — No Secondary Index (Sharded)
 #
-# Sharded variant: inherits from insert_no_index.yaml and enables sharding.
+# Sharded variant: imports from insert_no_index.yaml and enables sharding.
 
-inherits: insert_no_index.yaml
+imports: insert_no_index.yaml
 
 benchmark_name: insert_no_index_sharded
 run_label: no-index-sharded

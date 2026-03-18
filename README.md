@@ -13,26 +13,16 @@ documentdb-benchmarks/
 │   ├── data_generators/        # Shared document generators (used by all benchmarks)
 │   │   └── document_256byte.py # ~256-byte documents with standard field schema
 │   └── benchmarks/             # Individual benchmark definitions
-│       └── insert/             # Insert (write) performance variants
-│           ├── insert_no_index_benchmark.py
-│           ├── insert_single_path_index_benchmark.py
-│           ├── insert_composite_index_benchmark.py
-│           ├── insert_wildcard_index_benchmark.py
-│           └── insert_unique_index_benchmark.py
+│       ├── insert/             # Insert (write) performance variants
+│       ├── count/              # Count/aggregation performance variants
 ├── benchmark_analyzer/         # Analyze and compare results across runs
 │   ├── analyzer.py             # CLI for analysis and comparison
 │   ├── report_loader.py        # Load Locust CSV + metadata files
 │   ├── comparator.py           # Compare runs across scenarios or databases
 │   └── report_generator.py     # Generate console/HTML/CSV reports
 ├── config/                     # Example configuration files
-│   └── insert/                 # Insert benchmark configs
-│       ├── insert_base.yaml
-│       ├── insert_no_index.yaml
-│       ├── insert_single_path_index.yaml
-│       ├── insert_composite_index.yaml
-│       ├── insert_wildcard_index.yaml
-│       ├── insert_unique_index.yaml
-│       └── *_sharded.yaml      # Sharded variants for each
+│   ├── insert/                 # Insert benchmark configs
+│   ├── count/                  # Count/aggregation benchmark configs
 ├── pyproject.toml
 └── README.md
 ```
@@ -166,6 +156,12 @@ cpu=2
 memory=4g
 results_dir=./results
 
+# Locust concurrency overrides (optional).
+# When set, these override the per-benchmark YAML config values.
+# users=10
+# spawn_rate=5
+# run_time=60s
+
 # Docker-specific
 [docker]
 network=auto
@@ -205,31 +201,11 @@ Results are organized by engine under a timestamped run directory:
 | `run_time` | `--run-time` / `-t` | `60s` | Test duration (`60s`, `5m`, `1h`) |
 | `output_dir` | `--output-dir` / `-o` | `results` | Output directory |
 | `workload_params` | _(config only)_ | `{}` | Benchmark-specific parameters |
-| `inherits` | _(config only)_ | _(none)_ | Parent config file (relative path); values are deep-merged |
+| `imports` | _(config only)_ | _(none)_ | Parent config file (relative path); values are deep-merged |
 
-### Insert Benchmark Variants
+### Benchmark-Specific Parameters
 
-All insert benchmarks inherit shared defaults from `config/insert/insert_base.yaml`.
-Each variant adds a different index type to isolate its write-path overhead:
-
-| Config | Index | Description |
-|--------|-------|-------------|
-| `insert_no_index.yaml` | _(none)_ | Baseline — only the default `_id` index |
-| `insert_single_path_index.yaml` | `timestamp` ASC | Single-field ascending index |
-| `insert_composite_index.yaml` | `(category, timestamp)` ASC | Multi-key compound index |
-| `insert_wildcard_index.yaml` | `$**` | Root wildcard index (indexes every field) |
-| `insert_unique_index.yaml` | `timestamp` ASC, **unique** | Unique index — adds duplicate-key check overhead |
-
-Each variant also has a `*_sharded.yaml` config that enables collection sharding.
-
-### Insert Benchmark `workload_params`
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `document_size` | `256` | Approximate document size in bytes |
-| `batch_size` | `100` | Documents per `insert_many` call |
-| `drop_on_start` | `true` | Drop collection before starting |
-| `sharded` | `false` | Shard the collection before running |
-| `shard_key` | `"_id"` | Shard key path (`"_id"` or `"category"`) |
-| `insert_one_weight` | `3` | Task weight for `insert_one` (set `0` to disable) |
-| `insert_many_weight` | `1` | Task weight for `insert_many` (set `0` to disable) |
+Each benchmark category defines its own `workload_params` in its base YAML config
+(e.g. `config/insert/insert_base.yaml`, `config/count/count_base.yaml`).
+Refer to the base config and the benchmark module docstrings for the full list of
+available parameters and defaults.

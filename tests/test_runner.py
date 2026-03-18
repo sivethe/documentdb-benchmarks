@@ -2,10 +2,17 @@
 
 import json
 from datetime import datetime, timezone
-from unittest.mock import MagicMock
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 from benchmark_runner.config import BenchmarkConfig
-from benchmark_runner.runner import _generate_json_report, _mask_url
+from benchmark_runner.runner import (
+    _generate_json_report,
+    _mask_url,
+    _save_explain_plans,
+    _save_indexes,
+    _wait_for_setup_complete,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -172,3 +179,172 @@ class TestMaskUrl:
     def test_no_password_only_user(self):
         url = "mongodb://user@host:27017"
         assert _mask_url(url) == "mongodb://***:***@host:27017"
+
+
+# ---------------------------------------------------------------------------
+# _save_explain_plans
+# ---------------------------------------------------------------------------
+
+
+class TestSaveExplainPlans:
+    """Verify _save_explain_plans writes captured explain results to JSON."""
+
+    def test_saves_explain_json(self, tmp_path):
+        cls = MagicMock()
+        cls._explain_result = {"queryPlanner": {"winningPlan": "COLLSCAN"}}
+
+        _save_explain_plans([cls], tmp_path, "my_bench")
+
+        out = tmp_path / "my_bench_explain.json"
+        assert out.exists()
+        data = json.loads(out.read_text())
+        assert data["queryPlanner"]["winningPlan"] == "COLLSCAN"
+
+    def test_skips_when_no_explain(self, tmp_path):
+        cls = MagicMock()
+        cls._explain_result = None
+
+        _save_explain_plans([cls], tmp_path, "my_bench")
+
+        assert not (tmp_path / "my_bench_explain.json").exists()
+
+    def test_skips_when_no_attr(self, tmp_path):
+        cls = MagicMock(spec=[])  # no attributes at all
+
+        _save_explain_plans([cls], tmp_path, "my_bench")
+
+        assert not (tmp_path / "my_bench_explain.json").exists()
+
+    def test_non_serialisable_values_use_default_str(self, tmp_path):
+        """Non-JSON-serialisable values (e.g. ObjectId) are converted via default=str."""
+        cls = MagicMock()
+        cls._explain_result = {"ts": datetime(2026, 1, 1, tzinfo=timezone.utc)}
+
+        _save_explain_plans([cls], tmp_path, "my_bench")
+
+        out = tmp_path / "my_bench_explain.json"
+        data = json.loads(out.read_text())
+        assert "2026" in data["ts"]
+
+
+# ---------------------------------------------------------------------------
+# _save_indexes
+# ---------------------------------------------------------------------------
+
+
+class TestSaveIndexes:
+    """Verify _save_indexes writes captured index lists to JSON."""
+
+    def test_saves_indexes_json(self, tmp_path):
+        cls = MagicMock()
+        cls._indexes_result = [
+            {"v": 2, "key": {"_id": 1}, "name": "_id_"},
+            {"v": 2, "key": {"timestamp": 1}, "name": "idx_timestamp_asc"},
+        ]
+
+        _save_indexes([cls], tmp_path, "my_bench")
+
+        out = tmp_path / "my_bench_getIndexes.json"
+        assert out.exists()
+        data = json.loads(out.read_text())
+        assert len(data) == 2
+        assert data[0]["name"] == "_id_"
+        assert data[1]["name"] == "idx_timestamp_asc"
+
+    def test_skips_when_no_indexes(self, tmp_path):
+        cls = MagicMock()
+        cls._indexes_result = None
+
+        _save_indexes([cls], tmp_path, "my_bench")
+
+        assert not (tmp_path / "my_bench_getIndexes.json").exists()
+
+    def test_skips_when_no_attr(self, tmp_path):
+        cls = MagicMock(spec=[])  # no attributes at all
+
+        _save_indexes([cls], tmp_path, "my_bench")
+
+        assert not (tmp_path / "my_bench_getIndexes.json").exists()
+
+    def test_non_serialisable_values_use_default_str(self, tmp_path):
+        """Non-JSON-serialisable values are converted via default=str."""
+        cls = MagicMock()
+        cls._indexes_result = [
+            {
+                "v": 2,
+                "key": {"_id": 1},
+                "name": "_id_",
+                "ts": datetime(2026, 1, 1, tzinfo=timezone.utc),
+            },
+        ]
+
+        _save_indexes([cls], tmp_path, "my_bench")
+
+        out = tmp_path / "my_bench_getIndexes.json"
+        data = json.loads(out.read_text())
+        assert "2026" in data[0]["ts"]
+
+
+# ---------------------------------------------------------------------------
+# _wait_for_setup_complete
+# ---------------------------------------------------------------------------
+
+
+class TestWaitForSetupComplete:
+    """Verify _wait_for_setup_complete checks both _seed_done and _warmup_done."""
+
+    @patch("benchmark_runner.runner.gevent.sleep")
+    def test_returns_immediately_when_both_done(self, mock_sleep):
+        cls = MagicMock()
+        cls._seed_done = True
+        cls._warmup_done = True
+
+        elapsed = _wait_for_setup_complete([cls], timeout=5)
+
+        assert elapsed >= 0
+        mock_sleep.assert_not_called()
+
+    @patch("benchmark_runner.runner.gevent.sleep")
+    def test_waits_when_seed_done_but_warmup_not(self, mock_sleep):
+        """Runner must wait for warmup even if seeding is complete."""
+        cls = MagicMock()
+        cls._seed_done = True
+        cls._warmup_done = False
+
+        # Simulate warmup completing after first sleep
+        def complete_warmup(seconds):
+            cls._warmup_done = True
+
+        mock_sleep.side_effect = complete_warmup
+
+        elapsed = _wait_for_setup_complete([cls], timeout=5)
+
+        assert elapsed >= 0
+        mock_sleep.assert_called_once()
+
+    @patch("benchmark_runner.runner.gevent.sleep")
+    def test_waits_when_warmup_done_but_seed_not(self, mock_sleep):
+        """Runner must wait for seeding even if warmup flag is set."""
+        cls = MagicMock()
+        cls._seed_done = False
+        cls._warmup_done = True
+
+        def complete_seed(seconds):
+            cls._seed_done = True
+
+        mock_sleep.side_effect = complete_seed
+
+        elapsed = _wait_for_setup_complete([cls], timeout=5)
+
+        assert elapsed >= 0
+        mock_sleep.assert_called_once()
+
+    @patch("benchmark_runner.runner.gevent.sleep")
+    def test_defaults_to_true_when_attrs_missing(self, mock_sleep):
+        """Classes without _seed_done or _warmup_done are treated as ready."""
+        cls = MagicMock(spec=[])  # no attributes
+
+        elapsed = _wait_for_setup_complete([cls], timeout=5)
+
+        assert elapsed >= 0
+        mock_sleep.assert_not_called()

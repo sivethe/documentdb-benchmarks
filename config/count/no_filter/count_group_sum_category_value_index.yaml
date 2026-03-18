@@ -1,0 +1,12 @@
+# Count Benchmark — $group + $sum:1 (Category+Value Compound Index)
+#
+# Variant with a compound ascending index on (category, value).
+# Imports shared settings from count_group_sum.yaml.
+
+imports: count_group_sum.yaml
+
+benchmark_name: count_group_sum_category_value_index
+run_label: group-sum-category-value-index
+
+workload_params:
+  index_type: "category_value"

@@ -7,8 +7,8 @@ tuning, duration, concurrency, etc.) that are cumbersome on the command line.
 
 CLI arguments override config file values for quick iteration.
 
-Config files support inheritance via the ``inherits`` key. A child config
-specifies ``inherits: parent_config.yaml`` (relative to the child's directory)
+Config files support importing via the ``imports`` key. A child config
+specifies ``imports: parent_config.yaml`` (relative to the child's directory)
 and only overrides the values it needs. Deep merging is applied so that nested
 dicts like ``workload_params`` are merged rather than replaced.
 """
@@ -100,11 +100,11 @@ class BenchmarkConfig:
 
 
 def load_config(config_path: str, _seen: Optional[List[str]] = None) -> Dict[str, Any]:
-    """Load a YAML config file, resolving ``inherits`` chains.
+    """Load a YAML config file, resolving ``imports`` chains.
 
-    If the config contains an ``inherits`` key, the referenced parent config
+    If the config contains an ``imports`` key, the referenced parent config
     is loaded first (path resolved relative to the child file's directory),
-    and the child's values are deep-merged on top. Inheritance chains are
+    and the child's values are deep-merged on top. Chained imports are
     supported (grandparent -> parent -> child). Circular references are
     detected and raise ``ValueError``.
 
@@ -121,13 +121,13 @@ def load_config(config_path: str, _seen: Optional[List[str]] = None) -> Dict[str
         _seen = []
     if config_path in _seen:
         chain = " -> ".join(_seen + [config_path])
-        raise ValueError(f"Circular config inheritance detected: {chain}")
+        raise ValueError(f"Circular config imports detected: {chain}")
     _seen.append(config_path)
 
     with open(config_path, "r") as f:
         raw = yaml.safe_load(f) or {}
 
-    parent_ref = raw.pop("inherits", None)
+    parent_ref = raw.pop("imports", None)
     if parent_ref is not None:
         parent_path = str((Path(config_path).parent / parent_ref).resolve())
         parent_data = load_config(parent_path, _seen)

@@ -1,9 +1,9 @@
 # Insert Benchmark — Single-Path Ascending Index on timestamp
 #
 # Measures insert throughput with an ascending index on the timestamp field.
-# Inherits shared settings from insert_base.yaml.
+# Imports shared settings from insert_base.yaml.
 
-inherits: insert_base.yaml
+imports: insert_base.yaml
 
 benchmark_name: insert_single_path_index
 benchmark_module: benchmarks.insert.insert_single_path_index_benchmark

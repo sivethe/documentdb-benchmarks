@@ -1,0 +1,13 @@
+# Count Benchmark — $group + $sum:1 (Category+Value Index + Category Filter)
+#
+# Filtered variant: counts only documents matching {category: "A"}.
+# Imports shared settings from the no-filter category_value index config.
+
+imports: ../no_filter/count_group_sum_category_value_index.yaml
+
+benchmark_name: count_group_sum_category_value_index_category_filter
+run_label: group-sum-category-value-index-category-filter
+
+workload_params:
+  match_filter:
+    category: "A"

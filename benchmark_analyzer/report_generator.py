@@ -72,33 +72,30 @@ def format_console_report(report: ComparisonReport) -> str:
         for op in section.operations:
             for label in report.labels:
                 stat = op.stats_by_label.get(label)
-                if stat:
+                if stat is None:
+                    continue
+                if multi_label:
                     fail_pct = (stat.num_failures / max(stat.num_requests, 1)) * 100
-                    if multi_label:
-                        row = (
-                            f"  {op.operation_name:<30} {label:<20} "
-                            f"{stat.num_requests:>10,} "
-                            f"{stat.average_response_time:>10.1f} "
-                            f"{stat.p50:>10.1f} {stat.p95:>10.1f} "
-                            f"{stat.p99:>10.1f} "
-                            f"{stat.requests_per_sec:>10.1f} "
-                            f"{fail_pct:>7.1f}%"
-                        )
-                    else:
-                        row = (
-                            f"  {op.operation_name:<35} "
-                            f"{stat.num_requests:>10,} "
-                            f"{stat.average_response_time:>10.1f} "
-                            f"{stat.p50:>10.1f} {stat.p95:>10.1f} "
-                            f"{stat.p99:>10.1f} "
-                            f"{stat.requests_per_sec:>10.1f} "
-                            f"{fail_pct:>7.1f}%"
-                        )
+                    row = (
+                        f"  {op.operation_name:<30} {label:<20} "
+                        f"{stat.num_requests:>10,} "
+                        f"{stat.average_response_time:>10.1f} "
+                        f"{stat.p50:>10.1f} {stat.p95:>10.1f} "
+                        f"{stat.p99:>10.1f} "
+                        f"{stat.requests_per_sec:>10.1f} "
+                        f"{fail_pct:>7.1f}%"
+                    )
                 else:
-                    if multi_label:
-                        row = f"  {op.operation_name:<30} {label:<20} {'N/A':>10}"
-                    else:
-                        row = f"  {op.operation_name:<35} {'N/A':>10}"
+                    fail_pct = (stat.num_failures / max(stat.num_requests, 1)) * 100
+                    row = (
+                        f"  {op.operation_name:<35} "
+                        f"{stat.num_requests:>10,} "
+                        f"{stat.average_response_time:>10.1f} "
+                        f"{stat.p50:>10.1f} {stat.p95:>10.1f} "
+                        f"{stat.p99:>10.1f} "
+                        f"{stat.requests_per_sec:>10.1f} "
+                        f"{fail_pct:>7.1f}%"
+                    )
                 lines.append(row)
 
         # Totals
@@ -106,33 +103,29 @@ def format_console_report(report: ComparisonReport) -> str:
             lines.append("  " + "-" * (len(header) - 2))
             for label in report.labels:
                 stat = section.totals.get(label)
-                if stat:
-                    fail_pct = (stat.num_failures / max(stat.num_requests, 1)) * 100
-                    if multi_label:
-                        row = (
-                            f"  {'TOTAL':<30} {label:<20} "
-                            f"{stat.num_requests:>10,} "
-                            f"{stat.average_response_time:>10.1f} "
-                            f"{stat.p50:>10.1f} {stat.p95:>10.1f} "
-                            f"{stat.p99:>10.1f} "
-                            f"{stat.requests_per_sec:>10.1f} "
-                            f"{fail_pct:>7.1f}%"
-                        )
-                    else:
-                        row = (
-                            f"  {'TOTAL':<35} "
-                            f"{stat.num_requests:>10,} "
-                            f"{stat.average_response_time:>10.1f} "
-                            f"{stat.p50:>10.1f} {stat.p95:>10.1f} "
-                            f"{stat.p99:>10.1f} "
-                            f"{stat.requests_per_sec:>10.1f} "
-                            f"{fail_pct:>7.1f}%"
-                        )
+                if stat is None:
+                    continue
+                fail_pct = (stat.num_failures / max(stat.num_requests, 1)) * 100
+                if multi_label:
+                    row = (
+                        f"  {'TOTAL':<30} {label:<20} "
+                        f"{stat.num_requests:>10,} "
+                        f"{stat.average_response_time:>10.1f} "
+                        f"{stat.p50:>10.1f} {stat.p95:>10.1f} "
+                        f"{stat.p99:>10.1f} "
+                        f"{stat.requests_per_sec:>10.1f} "
+                        f"{fail_pct:>7.1f}%"
+                    )
                 else:
-                    if multi_label:
-                        row = f"  {'TOTAL':<30} {label:<20} {'N/A':>10}"
-                    else:
-                        row = f"  {'TOTAL':<35} {'N/A':>10}"
+                    row = (
+                        f"  {'TOTAL':<35} "
+                        f"{stat.num_requests:>10,} "
+                        f"{stat.average_response_time:>10.1f} "
+                        f"{stat.p50:>10.1f} {stat.p95:>10.1f} "
+                        f"{stat.p99:>10.1f} "
+                        f"{stat.requests_per_sec:>10.1f} "
+                        f"{fail_pct:>7.1f}%"
+                    )
                 lines.append(row)
 
     lines.append("")
@@ -228,14 +221,13 @@ def _operations_flat_md_table(
     for op in operations:
         for label in labels:
             stat = op.stats_by_label.get(label)
+            if stat is None:
+                continue
             cells = [op.operation_name]
             if multi_label:
                 cells.append(label)
             for _, attr, fmt in _FLAT_TABLE_METRICS:
-                if stat:
-                    cells.append(_fmt_val(getattr(stat, attr, None), fmt))
-                else:
-                    cells.append("N/A")
+                cells.append(_fmt_val(getattr(stat, attr, None), fmt))
             rows.append("| " + " | ".join(cells) + " |")
 
     return "\n".join(rows)

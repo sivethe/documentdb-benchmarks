@@ -1,0 +1,12 @@
+# Count Benchmark — $group + $sum:1
+#
+# Measures aggregation counting performance using the classic
+# $group + $sum:1 pipeline on a pre-seeded collection.
+# Imports shared settings from count_base.yaml.
+
+imports: ../count_base.yaml
+
+benchmark_name: count_group_sum
+benchmark_module: benchmarks.count.count_group_sum_benchmark
+collection: count_test
+run_label: group-sum-noindex

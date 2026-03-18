@@ -1,0 +1,12 @@
+# Count Benchmark — $group + $count:{} (Wildcard Index)
+#
+# Variant with a wildcard index on $**.
+# Imports shared settings from count_group_count.yaml.
+
+imports: count_group_count.yaml
+
+benchmark_name: count_group_count_wildcard_index
+run_label: group-count-wildcard-index
+
+workload_params:
+  index_type: "wildcard"

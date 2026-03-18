@@ -1,0 +1,13 @@
+# Count Benchmark — $group + $count:{} (Single Path Index + Category Filter)
+#
+# Filtered variant: counts only documents matching {category: "A"}.
+# Imports shared settings from the no-filter single path index config.
+
+imports: ../no_filter/count_group_count_single_path_index.yaml
+
+benchmark_name: count_group_count_single_path_index_category_filter
+run_label: group-count-single-path-index-category-filter
+
+workload_params:
+  match_filter:
+    category: "A"
