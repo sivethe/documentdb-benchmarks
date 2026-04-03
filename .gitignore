@@ -20,6 +20,9 @@ env/
 dist/
 build/
 
+# Pipeline config (contains connection strings / secrets)
+deploy/pipeline.config
+
 # Benchmark results (large files, generated per-run)
 results/
 

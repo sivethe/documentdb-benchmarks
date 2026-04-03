@@ -1,8 +1,8 @@
 """
 Shared helpers for count/aggregation benchmarks.
 
-Provides collection seeding and index creation utilities used by all
-count benchmark variants (group_sum, group_count, count_stage).
+Provides collection seeding utilities used by all count benchmark
+variants (group_sum, group_count, count_stage).
 
 The count benchmarks measure aggregation counting performance on a
 pre-seeded collection using different pipeline strategies.
@@ -10,16 +10,48 @@ pre-seeded collection using different pipeline strategies.
 
 import logging
 import math
-from typing import Any, Dict, List
+from typing import Any
 
-import pymongo
-
+from benchmark_runner.base_benchmark import MongoUser
 from benchmark_runner.data_generators.document_256byte import generate_document
 
 logger = logging.getLogger(__name__)
 
-# Batch size for bulk seeding operations.
-_SEED_BATCH_SIZE = 10000
+
+class CountBenchmarkUser(MongoUser):
+    """Base class for count/aggregation benchmarks.
+
+    Provides shared ``on_start()`` lifecycle (param reading, seeding,
+    index creation, warmup with explain plan capture).  Subclasses
+    only need to implement ``_build_pipeline()`` and a ``@task`` method.
+    """
+
+    abstract = True
+
+    def on_start(self):
+        """Connect, seed the collection, and create indexes."""
+        super().on_start()
+        self.seed_docs = self.get_param("seed_docs", 1000000)
+        self.document_size = self.get_param("document_size", 256)
+        self.indexSpec = self.get_param("indexSpec", None)
+        self.match_filter = self.get_param("match_filter", None)
+        # seed_collection() and run_warmup() require a callable that is invoked
+        # later under a class-level lock so only one user performs the work.
+        self.seed_collection(self._seed_and_index, drop=self.get_param("drop_on_start", True))
+        self.run_warmup(self._warmup)
+
+    def _warmup(self):
+        """Capture the explain plan during the warmup phase."""
+        self.capture_explain_plan(lambda: self.explain_aggregation(self._build_pipeline()))
+
+    def _seed_and_index(self):
+        """Seed documents and create optional indexes."""
+        seed_count_collection(self.collection, self.seed_docs, self.document_size)
+        self.create_indexes(self.indexSpec)
+
+    def _build_pipeline(self):
+        """Build the aggregation pipeline.  Must be overridden by subclasses."""
+        raise NotImplementedError
 
 
 def seed_count_collection(
@@ -72,67 +104,3 @@ def seed_count_collection(
 
     logger.info("Seeding complete: %d total documents", total_inserted)
     return total_inserted
-
-
-def create_indexes(
-    collection: Any,
-    index_type: str,
-    database_engine: str = "",
-) -> List[str]:
-    """Create optional indexes on a count benchmark collection.
-
-    Args:
-        collection: A pymongo Collection.
-        index_type: Index configuration to create. Supported values:
-
-            - ``"none"`` — no indexes (default)
-            - ``"category"`` — single ascending index on ``category``
-            - ``"category_value"`` — compound index on ``(category, value)``
-            - ``"wildcard"`` — wildcard index on ``$**``
-
-        database_engine: Engine name for engine-specific options
-            (e.g. ``"azure_documentdb"``).
-
-    Returns:
-        List of created index names (empty for ``"none"``).
-    """
-    if index_type == "none":
-        return []
-
-    kwargs: Dict[str, Any] = {}
-    if database_engine == "azure_documentdb":
-        kwargs["storageEngine"] = {"enableOrderedIndex": True}
-
-    created: List[str] = []
-
-    if index_type == "category":
-        name = collection.create_index(
-            [("category", pymongo.ASCENDING)],
-            name="idx_category_asc",
-            **kwargs,
-        )
-        created.append(name)
-        logger.info("Created category index '%s' on %s", name, collection.name)
-
-    elif index_type == "category_value":
-        name = collection.create_index(
-            [("category", pymongo.ASCENDING), ("value", pymongo.ASCENDING)],
-            name="idx_category_value_asc",
-            **kwargs,
-        )
-        created.append(name)
-        logger.info("Created category+value index '%s' on %s", name, collection.name)
-
-    elif index_type == "wildcard":
-        # Wildcard indexes may not support storageEngine on all engines
-        name = collection.create_index(
-            [("$**", 1)],
-            name="idx_wildcard",
-        )
-        created.append(name)
-        logger.info("Created wildcard index '%s' on %s", name, collection.name)
-
-    else:
-        logger.warning("Unknown index_type '%s' — skipping index creation", index_type)
-
-    return created

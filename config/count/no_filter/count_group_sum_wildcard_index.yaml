@@ -9,4 +9,4 @@ benchmark_name: count_group_sum_wildcard_index
 run_label: group-sum-wildcard-index
 
 workload_params:
-  index_type: "wildcard"
+  indexSpec: {"$**": 1}

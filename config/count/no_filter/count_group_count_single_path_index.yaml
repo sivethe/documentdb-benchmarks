@@ -9,4 +9,4 @@ benchmark_name: count_group_count_single_path_index
 run_label: group-count-single-path-index
 
 workload_params:
-  index_type: "category"
+  indexSpec: {category: 1}

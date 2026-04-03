@@ -20,7 +20,7 @@ output_dir: results/count
 workload_params:
   seed_docs: 1000000        # documents to seed in collection
   document_size: 256        # bytes per document
-  index_type: "none"        # index to create: none, category, category_value, wildcard
+  # indexSpec: {category: 1}    # index key spec (null = no index)
   drop_on_start: true       # clean collection before seeding
   # match_filter:           # optional $match filter prepended to pipeline (default: none)
   #   category: "A"         # example: equality filter on category
