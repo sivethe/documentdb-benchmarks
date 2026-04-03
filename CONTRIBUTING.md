@@ -12,7 +12,6 @@ Create a new file under `benchmark_runner/benchmarks/<category>/`:
 # benchmark_runner/benchmarks/my_category/my_benchmark.py
 from locust import task, between
 from benchmark_runner.base_benchmark import MongoUser
-from benchmark_runner.data_generators.document_256byte import generate_document
 
 class MyBenchmarkUser(MongoUser):
     wait_time = between(0, 0.01)
@@ -24,7 +23,7 @@ class MyBenchmarkUser(MongoUser):
         self.run_warmup(self._warmup)
 
     def _seed(self):
-        docs = [generate_document() for _ in range(1000)]
+        docs = [self.generate_document(256) for _ in range(1000)]
         self.collection.insert_many(docs, ordered=False)
 
     def _warmup(self):
@@ -331,28 +330,43 @@ Reusable document generators live in `benchmark_runner/data_generators/` and are
 across all benchmark categories. Each generator is a Python module that exposes a
 `generate_document(size_bytes: int = <default>) -> dict` function.
 
-**Naming convention:** `document_<size><unit>[_<characteristic>].py`
+Benchmarks select a generator via the `data_generator` workload parameter in their
+YAML config.  The `MongoUser` base class resolves the generator at startup and
+exposes it as `self.generate_document(size_bytes)`.  This means benchmarks do **not**
+need to import a specific generator module — the choice is fully config-driven.
 
-- The file name **must** start with `document_` followed by the target document
-  size and unit (e.g. `256byte`, `1kb`, `4kb`).
-- If the generator produces documents with a specific trait beyond size, append a
-  descriptor after the size: e.g. `document_4kb_nested.py`,
-  `document_1kb_arrays.py`.
+**Naming convention:** `document_<characteristic>.py`
+
+- The file name **must** start with `document_` followed by a descriptive name
+  (e.g. `document_standard.py`, `document_nested.py`, `document_arrays.py`).
 - Each module exposes a `generate_document(size_bytes: int = <default>) -> dict`
   function with a Google-style docstring.
+- Register the module in the `_GENERATORS` dict in
+  `benchmark_runner/data_generators/__init__.py` so it can be referenced by
+  short name in YAML configs.
 
-| Module | Default size | Description |
-|--------|-------------|-------------|
-| `document_256byte.py` | 256 B | Standard flat schema (`_id`, `timestamp`, `category`, `value`, `counter`, optional `payload` padding) |
+| Module | Default size | Short name | Description |
+|--------|-------------|------------|-------------|
+| `document_standard.py` | 256 B | `standard` | Tiered schema with core scalars (`_id`, `createdAt`, `category`, `value`, `counter`, etc.), progressively adding `tags`, `metadata`, `profile`, `events`, `items`, and `payload` as size increases. Deterministic via `uniqueNumber` seed. |
 
-Benchmarks import directly from the canonical path:
+Benchmarks use the generator resolved by the base class:
 
 ```python
-from benchmark_runner.data_generators.document_256byte import generate_document
+# In a benchmark's @task method:
+doc = self.generate_document(self.document_size)
 ```
 
-To add a new generator, create a file following the naming convention and add
-tests in `tests/test_insert_common.py` or a dedicated test file.
+To use a specific generator in a YAML config:
+
+```yaml
+workload_params:
+  data_generator: standard   # short name from _GENERATORS registry
+  document_size: 512          # size passed to generate_document()
+```
+
+To add a new generator, create a file following the naming convention,
+register it in `__init__.py`, and add tests in `tests/test_insert_common.py`
+or a dedicated test file.
 
 ## Testing
 
@@ -408,8 +422,8 @@ ruff check .
 
 When adding a new benchmark, update **all** of the following so documentation stays in sync:
 
-1. **Data generator** (if needed) — If the benchmark requires a new document shape or size, add a generator in `benchmark_runner/data_generators/` following the naming convention `document_<size>[_<trait>].py`. Add tests in `tests/test_insert_common.py` (or a new `test_data_generators.py` file). Update the generators table above.
-2. **Benchmark module** — Create the Python file under `benchmark_runner/benchmarks/<category>/` (e.g. `insert_unique_index_benchmark.py`). Include a module-level docstring listing all `workload_params`. Import document generators from `benchmark_runner.data_generators`.
+1. **Data generator** (if needed) — If the benchmark requires a new document shape, add a generator in `benchmark_runner/data_generators/` following the naming convention `document_<characteristic>.py`. Register it in `benchmark_runner/data_generators/__init__.py`. Add tests in `tests/test_insert_common.py` (or a new `test_data_generators.py` file). Update the generators table above.
+2. **Benchmark module** — Create the Python file under `benchmark_runner/benchmarks/<category>/` (e.g. `insert_unique_index_benchmark.py`). Include a module-level docstring listing all `workload_params`. Use `self.generate_document` (resolved from config) instead of importing a generator directly.
 3. **YAML configs** — Add a base config in `config/<category>/` that imports from the shared base (e.g. `insert_base.yaml`). Add a `*_sharded.yaml` variant if sharding applies.
 4. **Tests** — Add test classes to the relevant test file in `tests/` (e.g. `tests/test_insert_benchmarks.py`). Cover: index creation, Azure `storageEngine` kwargs, seed-once behaviour, task execution, sharding-error handling, weight params, task weights, warmup behaviour, and explain plan capture (if implemented).
 5. **README.md** — Only update if adding a **new benchmark category** (e.g. a new

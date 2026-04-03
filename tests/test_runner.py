@@ -239,7 +239,7 @@ class TestSaveIndexes:
         cls = MagicMock()
         cls._indexes_result = [
             {"v": 2, "key": {"_id": 1}, "name": "_id_"},
-            {"v": 2, "key": {"timestamp": 1}, "name": "idx_timestamp_asc"},
+            {"v": 2, "key": {"createdAt": 1}, "name": "idx_createdAt_asc"},
         ]
 
         _save_indexes([cls], tmp_path, "my_bench")
@@ -249,7 +249,7 @@ class TestSaveIndexes:
         data = json.loads(out.read_text())
         assert len(data) == 2
         assert data[0]["name"] == "_id_"
-        assert data[1]["name"] == "idx_timestamp_asc"
+        assert data[1]["name"] == "idx_createdAt_asc"
 
     def test_skips_when_no_indexes(self, tmp_path):
         cls = MagicMock()

@@ -1,8 +1,8 @@
 """
-Insert Benchmark — unique index on ``timestamp``.
+Insert Benchmark — unique index on ``createdAt``.
 
 Measures insert throughput on a collection that has a unique ascending
-index on the ``timestamp`` field in addition to the default ``_id``
+index on the ``createdAt`` field in addition to the default ``_id``
 index.  Unique indexes add the overhead of a duplicate-key check on
 every insert, so this benchmark captures the additional cost compared
 to a plain (non-unique) secondary index.
@@ -21,13 +21,12 @@ import pymongo
 from locust import task, between
 
 from benchmark_runner.base_benchmark import MongoUser
-from benchmark_runner.data_generators.document_256byte import generate_document
 
 logger = logging.getLogger(__name__)
 
 
 class InsertUniqueIndexBenchmarkUser(MongoUser):
-    """Benchmark user that measures insert performance with a unique index on timestamp."""
+    """Benchmark user that measures insert performance with a unique index on createdAt."""
 
     wait_time = between(0, 0.01)
 
@@ -41,17 +40,17 @@ class InsertUniqueIndexBenchmarkUser(MongoUser):
         self.run_warmup()
 
     def _create_index(self):
-        """Create a unique ascending index on the ``timestamp`` field."""
+        """Create a unique ascending index on the ``createdAt`` field."""
         logger.info(
-            "Creating unique ascending index on 'timestamp' for %s",
+            "Creating unique ascending index on 'createdAt' for %s",
             self.collection.name,
         )
         kwargs = {}
         if self.config and self.config.database_engine == "azure_documentdb":
             kwargs["storageEngine"] = {"enableOrderedIndex": True}
         self.collection.create_index(
-            [("timestamp", pymongo.ASCENDING)],
-            name="idx_timestamp_unique",
+            [("createdAt", pymongo.ASCENDING)],
+            name="idx_createdAt_unique",
             unique=True,
             **kwargs,
         )
@@ -63,7 +62,7 @@ class InsertUniqueIndexBenchmarkUser(MongoUser):
             return
         if self.fail_if_sharding_error("insert_one_uniqueIndex"):
             return
-        doc = generate_document(self.document_size)
+        doc = self.generate_document(self.document_size)
         with self.timed_operation("insert_one_uniqueIndex"):
             self.collection.insert_one(doc)
 
@@ -74,6 +73,6 @@ class InsertUniqueIndexBenchmarkUser(MongoUser):
             return
         if self.fail_if_sharding_error("insert_many_uniqueIndex"):
             return
-        docs = [generate_document(self.document_size) for _ in range(self.batch_size)]
+        docs = [self.generate_document(self.document_size) for _ in range(self.batch_size)]
         with self.timed_operation("insert_many_uniqueIndex"):
             self.collection.insert_many(docs)

@@ -1,8 +1,8 @@
 """
-Insert Benchmark — single-path ascending index on ``timestamp``.
+Insert Benchmark — single-path ascending index on ``createdAt``.
 
 Measures insert throughput on a collection that has an ascending index
-on the ``timestamp`` field in addition to the default ``_id`` index.
+on the ``createdAt`` field in addition to the default ``_id`` index.
 This isolates the cost of maintaining a single B-tree index during
 writes.
 
@@ -20,13 +20,12 @@ import pymongo
 from locust import task, between
 
 from benchmark_runner.base_benchmark import MongoUser
-from benchmark_runner.data_generators.document_256byte import generate_document
 
 logger = logging.getLogger(__name__)
 
 
 class InsertSinglePathIndexBenchmarkUser(MongoUser):
-    """Benchmark user that measures insert performance with an ascending index on timestamp."""
+    """Benchmark user that measures insert performance with an ascending index on createdAt."""
 
     wait_time = between(0, 0.01)
 
@@ -40,17 +39,17 @@ class InsertSinglePathIndexBenchmarkUser(MongoUser):
         self.run_warmup()
 
     def _create_index(self):
-        """Create an ascending index on the ``timestamp`` field."""
+        """Create an ascending index on the ``createdAt`` field."""
         logger.info(
-            "Creating ascending index on 'timestamp' for %s",
+            "Creating ascending index on 'createdAt' for %s",
             self.collection.name,
         )
         kwargs = {}
         if self.config and self.config.database_engine == "azure_documentdb":
             kwargs["storageEngine"] = {"enableOrderedIndex": True}
         self.collection.create_index(
-            [("timestamp", pymongo.ASCENDING)],
-            name="idx_timestamp_asc",
+            [("createdAt", pymongo.ASCENDING)],
+            name="idx_createdAt_asc",
             **kwargs,
         )
 
@@ -61,7 +60,7 @@ class InsertSinglePathIndexBenchmarkUser(MongoUser):
             return
         if self.fail_if_sharding_error("insert_one_singlePathIndex"):
             return
-        doc = generate_document(self.document_size)
+        doc = self.generate_document(self.document_size)
         with self.timed_operation("insert_one_singlePathIndex"):
             self.collection.insert_one(doc)
 
@@ -72,6 +71,6 @@ class InsertSinglePathIndexBenchmarkUser(MongoUser):
             return
         if self.fail_if_sharding_error("insert_many_singlePathIndex"):
             return
-        docs = [generate_document(self.document_size) for _ in range(self.batch_size)]
+        docs = [self.generate_document(self.document_size) for _ in range(self.batch_size)]
         with self.timed_operation("insert_many_singlePathIndex"):
             self.collection.insert_many(docs)

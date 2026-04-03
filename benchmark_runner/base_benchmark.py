@@ -18,6 +18,8 @@ from gevent import GreenletExit
 import pymongo
 from locust import User, between
 
+from benchmark_runner.data_generators import get_generator
+
 logger = logging.getLogger(__name__)
 
 
@@ -89,6 +91,10 @@ class MongoUser(User):
         self.client = pymongo.MongoClient(mongodb_url)
         self.db = self.client[database]
         self.collection = self.db[collection]
+
+        # Resolve the document generator from config (default: "standard")
+        generator_name = self.get_param("data_generator", "standard")
+        self.generate_document = get_generator(generator_name)
 
     def on_stop(self):
         """Close MongoDB connection when the user stops."""

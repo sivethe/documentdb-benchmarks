@@ -19,7 +19,6 @@ import logging
 from locust import task, between
 
 from benchmark_runner.base_benchmark import MongoUser
-from benchmark_runner.data_generators.document_256byte import generate_document
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +44,7 @@ class InsertNoIndexBenchmarkUser(MongoUser):
             return
         if self.fail_if_sharding_error("insert_one"):
             return
-        doc = generate_document(self.document_size)
+        doc = self.generate_document(self.document_size)
         with self.timed_operation("insert_one"):
             self.collection.insert_one(doc)
 
@@ -56,6 +55,6 @@ class InsertNoIndexBenchmarkUser(MongoUser):
             return
         if self.fail_if_sharding_error("insert_many"):
             return
-        docs = [generate_document(self.document_size) for _ in range(self.batch_size)]
+        docs = [self.generate_document(self.document_size) for _ in range(self.batch_size)]
         with self.timed_operation("insert_many"):
             self.collection.insert_many(docs)

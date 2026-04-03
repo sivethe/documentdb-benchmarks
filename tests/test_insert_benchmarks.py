@@ -269,7 +269,7 @@ class TestInsertSinglePathIndexOnStart:
     """Verify on_start for the single-path-index variant."""
 
     @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
-    def test_creates_timestamp_index(self, mock_client_cls):
+    def test_creates_createdAt_index(self, mock_client_cls):
         mock_client, _, mock_collection = _setup_mock_mongo()
         mock_client_cls.return_value = mock_client
 
@@ -278,12 +278,12 @@ class TestInsertSinglePathIndexOnStart:
         user.on_start()
 
         mock_collection.create_index.assert_called_once_with(
-            [("timestamp", pymongo.ASCENDING)],
-            name="idx_timestamp_asc",
+            [("createdAt", pymongo.ASCENDING)],
+            name="idx_createdAt_asc",
         )
 
     @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
-    def test_creates_timestamp_index_with_ordered_index_on_azure(self, mock_client_cls):
+    def test_creates_createdAt_index_with_ordered_index_on_azure(self, mock_client_cls):
         mock_client, _, mock_collection = _setup_mock_mongo()
         mock_client_cls.return_value = mock_client
 
@@ -292,8 +292,8 @@ class TestInsertSinglePathIndexOnStart:
         user.on_start()
 
         mock_collection.create_index.assert_called_once_with(
-            [("timestamp", pymongo.ASCENDING)],
-            name="idx_timestamp_asc",
+            [("createdAt", pymongo.ASCENDING)],
+            name="idx_createdAt_asc",
             storageEngine={"enableOrderedIndex": True},
         )
 
@@ -463,8 +463,8 @@ class TestInsertCompositeIndexOnStart:
         user.on_start()
 
         mock_collection.create_index.assert_called_once_with(
-            [("category", pymongo.ASCENDING), ("timestamp", pymongo.ASCENDING)],
-            name="idx_category_timestamp_asc",
+            [("category", pymongo.ASCENDING), ("createdAt", pymongo.ASCENDING)],
+            name="idx_category_createdAt_asc",
         )
 
     @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
@@ -477,8 +477,8 @@ class TestInsertCompositeIndexOnStart:
         user.on_start()
 
         mock_collection.create_index.assert_called_once_with(
-            [("category", pymongo.ASCENDING), ("timestamp", pymongo.ASCENDING)],
-            name="idx_category_timestamp_asc",
+            [("category", pymongo.ASCENDING), ("createdAt", pymongo.ASCENDING)],
+            name="idx_category_createdAt_asc",
             storageEngine={"enableOrderedIndex": True},
         )
 
@@ -548,8 +548,8 @@ class TestInsertUniqueIndexOnStart:
         user.on_start()
 
         mock_collection.create_index.assert_called_once_with(
-            [("timestamp", pymongo.ASCENDING)],
-            name="idx_timestamp_unique",
+            [("createdAt", pymongo.ASCENDING)],
+            name="idx_createdAt_unique",
             unique=True,
         )
 
@@ -563,8 +563,8 @@ class TestInsertUniqueIndexOnStart:
         user.on_start()
 
         mock_collection.create_index.assert_called_once_with(
-            [("timestamp", pymongo.ASCENDING)],
-            name="idx_timestamp_unique",
+            [("createdAt", pymongo.ASCENDING)],
+            name="idx_createdAt_unique",
             unique=True,
             storageEngine={"enableOrderedIndex": True},
         )
@@ -801,7 +801,7 @@ class TestCaptureIndexes:
         mock_client_cls.return_value = mock_client
         expected_indexes = [
             {"v": 2, "key": {"_id": 1}, "name": "_id_"},
-            {"v": 2, "key": {"timestamp": 1}, "name": "idx_timestamp_asc"},
+            {"v": 2, "key": {"createdAt": 1}, "name": "idx_createdAt_asc"},
         ]
         mock_collection.list_indexes.return_value = iter(expected_indexes)
 

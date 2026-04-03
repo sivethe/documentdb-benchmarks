@@ -11,7 +11,7 @@ documentdb-benchmarks/
 │   ├── config.py               # YAML config loading + CLI argument parsing
 │   ├── base_benchmark.py       # MongoUser base class for all benchmarks
 │   ├── data_generators/        # Shared document generators (used by all benchmarks)
-│   │   └── document_256byte.py # ~256-byte documents with standard field schema
+│   │   └── document_standard.py # Standard documents with configurable size
 │   └── benchmarks/             # Individual benchmark definitions
 │       ├── insert/             # Insert (write) performance variants
 │       ├── count/              # Count/aggregation performance variants

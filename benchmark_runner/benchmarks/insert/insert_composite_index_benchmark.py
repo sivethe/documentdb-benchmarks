@@ -1,8 +1,8 @@
 """
-Insert Benchmark — composite index on ``category`` + ``timestamp``.
+Insert Benchmark — composite index on ``category`` + ``createdAt``.
 
 Measures insert throughput on a collection that has a compound
-ascending index on ``(category, timestamp)`` in addition to the default
+ascending index on ``(category, createdAt)`` in addition to the default
 ``_id`` index.  This isolates the cost of maintaining a multi-key
 B-tree index during writes.
 
@@ -20,7 +20,6 @@ import pymongo
 from locust import task, between
 
 from benchmark_runner.base_benchmark import MongoUser
-from benchmark_runner.data_generators.document_256byte import generate_document
 
 logger = logging.getLogger(__name__)
 
@@ -40,17 +39,17 @@ class InsertCompositeIndexBenchmarkUser(MongoUser):
         self.run_warmup()
 
     def _create_index(self):
-        """Create a composite ascending index on ``category`` + ``timestamp``."""
+        """Create a composite ascending index on ``category`` + ``createdAt``."""
         logger.info(
-            "Creating composite index on 'category' + 'timestamp' for %s",
+            "Creating composite index on 'category' + 'createdAt' for %s",
             self.collection.name,
         )
         kwargs = {}
         if self.config and self.config.database_engine == "azure_documentdb":
             kwargs["storageEngine"] = {"enableOrderedIndex": True}
         self.collection.create_index(
-            [("category", pymongo.ASCENDING), ("timestamp", pymongo.ASCENDING)],
-            name="idx_category_timestamp_asc",
+            [("category", pymongo.ASCENDING), ("createdAt", pymongo.ASCENDING)],
+            name="idx_category_createdAt_asc",
             **kwargs,
         )
 
@@ -61,7 +60,7 @@ class InsertCompositeIndexBenchmarkUser(MongoUser):
             return
         if self.fail_if_sharding_error("insert_one_compositeIndex"):
             return
-        doc = generate_document(self.document_size)
+        doc = self.generate_document(self.document_size)
         with self.timed_operation("insert_one_compositeIndex"):
             self.collection.insert_one(doc)
 
@@ -72,6 +71,6 @@ class InsertCompositeIndexBenchmarkUser(MongoUser):
             return
         if self.fail_if_sharding_error("insert_many_compositeIndex"):
             return
-        docs = [generate_document(self.document_size) for _ in range(self.batch_size)]
+        docs = [self.generate_document(self.document_size) for _ in range(self.batch_size)]
         with self.timed_operation("insert_many_compositeIndex"):
             self.collection.insert_many(docs)
