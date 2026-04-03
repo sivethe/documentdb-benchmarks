@@ -281,6 +281,43 @@ class MongoUser(User):
             logger.error("Failed to shard collection %s: %s", namespace, exc)
             self.__class__._sharding_error = f"shardCollection failed for {namespace}: {exc}"
 
+    def create_indexes(
+        self,
+        index_spec: Optional[dict] = None,
+        **kwargs,
+    ) -> List[str]:
+        """Create an index on the collection from a key specification.
+
+        Automatically adds ``storageEngine`` options for Azure DocumentDB
+        unless the index contains wildcard fields (``$**``).
+
+        Args:
+            index_spec: Index key specification as a dict mapping field
+                names to sort direction, matching MongoDB's native
+                format, e.g. ``{"category": 1}`` or
+                ``{"category": 1, "value": 1}``.
+                If ``None`` or empty, no index is created.
+            **kwargs: Additional keyword arguments passed to
+                ``collection.create_index()``.
+
+        Returns:
+            List of created index names (empty if *index_spec* is
+            ``None`` or empty).
+        """
+        if not index_spec:
+            return []
+
+        keys = list(index_spec.items())
+
+        is_wildcard = any(field == "$**" for field, _ in keys)
+        db_engine = self.config.database_engine if self.config else ""
+        if db_engine == "azure_documentdb" and not is_wildcard:
+            kwargs.setdefault("storageEngine", {"enableOrderedIndex": True})
+
+        name = self.collection.create_index(keys, **kwargs)
+        logger.info("Created index '%s' on %s (spec: %s)", name, self.collection.name, keys)
+        return [name]
+
     def run_warmup(self, warmup_func: Optional[Callable[[], None]] = None) -> None:
         """Run warmup actions exactly once, after seeding, before measurement.
 

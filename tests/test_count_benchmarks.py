@@ -7,13 +7,11 @@ Covers:
 - count_stage_benchmark ($count stage)
 """
 
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
-import pymongo
 from locust.env import Environment
 
 from benchmark_runner.benchmarks.count.count_common import (
-    create_indexes,
     seed_count_collection,
 )
 from benchmark_runner.benchmarks.count.count_group_sum_benchmark import (
@@ -147,105 +145,6 @@ class TestSeedCountCollection:
 
 
 # ===========================================================================
-# count_common — create_indexes
-# ===========================================================================
-
-
-class TestCreateIndexes:
-    """Verify index creation for count benchmarks."""
-
-    def test_none_creates_no_indexes(self):
-        mock_collection = MagicMock()
-        result = create_indexes(mock_collection, "none")
-        assert result == []
-        mock_collection.create_index.assert_not_called()
-
-    def test_category_index(self):
-        mock_collection = MagicMock()
-        mock_collection.name = "test_col"
-        mock_collection.create_index.return_value = "idx_category_asc"
-
-        result = create_indexes(mock_collection, "category")
-
-        mock_collection.create_index.assert_called_once_with(
-            [("category", pymongo.ASCENDING)],
-            name="idx_category_asc",
-        )
-        assert result == ["idx_category_asc"]
-
-    def test_category_value_index(self):
-        mock_collection = MagicMock()
-        mock_collection.name = "test_col"
-        mock_collection.create_index.return_value = "idx_category_value_asc"
-
-        result = create_indexes(mock_collection, "category_value")
-
-        mock_collection.create_index.assert_called_once_with(
-            [("category", pymongo.ASCENDING), ("value", pymongo.ASCENDING)],
-            name="idx_category_value_asc",
-        )
-        assert result == ["idx_category_value_asc"]
-
-    def test_wildcard_index(self):
-        mock_collection = MagicMock()
-        mock_collection.name = "test_col"
-        mock_collection.create_index.return_value = "idx_wildcard"
-
-        result = create_indexes(mock_collection, "wildcard")
-
-        mock_collection.create_index.assert_called_once_with(
-            [("$**", 1)],
-            name="idx_wildcard",
-        )
-        assert result == ["idx_wildcard"]
-
-    def test_category_index_azure(self):
-        mock_collection = MagicMock()
-        mock_collection.name = "test_col"
-        mock_collection.create_index.return_value = "idx_category_asc"
-
-        create_indexes(mock_collection, "category", database_engine="azure_documentdb")
-
-        mock_collection.create_index.assert_called_once_with(
-            [("category", pymongo.ASCENDING)],
-            name="idx_category_asc",
-            storageEngine={"enableOrderedIndex": True},
-        )
-
-    def test_category_value_index_azure(self):
-        mock_collection = MagicMock()
-        mock_collection.name = "test_col"
-        mock_collection.create_index.return_value = "idx_category_value_asc"
-
-        create_indexes(mock_collection, "category_value", database_engine="azure_documentdb")
-
-        mock_collection.create_index.assert_called_once_with(
-            [("category", pymongo.ASCENDING), ("value", pymongo.ASCENDING)],
-            name="idx_category_value_asc",
-            storageEngine={"enableOrderedIndex": True},
-        )
-
-    def test_wildcard_index_no_storage_engine(self):
-        """Wildcard indexes don't pass storageEngine even on Azure."""
-        mock_collection = MagicMock()
-        mock_collection.name = "test_col"
-        mock_collection.create_index.return_value = "idx_wildcard"
-
-        create_indexes(mock_collection, "wildcard", database_engine="azure_documentdb")
-
-        mock_collection.create_index.assert_called_once_with(
-            [("$**", 1)],
-            name="idx_wildcard",
-        )
-
-    def test_unknown_index_type(self):
-        mock_collection = MagicMock()
-        result = create_indexes(mock_collection, "unknown_type")
-        assert result == []
-        mock_collection.create_index.assert_not_called()
-
-
-# ===========================================================================
 # CountGroupSumBenchmarkUser
 # ===========================================================================
 
@@ -264,7 +163,7 @@ class TestCountGroupSumOnStart:
 
         assert user.seed_docs == 1000000
         assert user.document_size == 256
-        assert user.index_type == "none"
+        assert user.indexSpec is None
         assert user.match_filter is None
 
     @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
@@ -276,7 +175,7 @@ class TestCountGroupSumOnStart:
             {
                 "seed_docs": 5000,
                 "document_size": 512,
-                "index_type": "category",
+                "indexSpec": {"category": 1},
             }
         )
         user = _make_user(CountGroupSumBenchmarkUser, env)
@@ -284,7 +183,7 @@ class TestCountGroupSumOnStart:
 
         assert user.seed_docs == 5000
         assert user.document_size == 512
-        assert user.index_type == "category"
+        assert user.indexSpec == {"category": 1}
 
     @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
     def test_seeds_collection(self, mock_client_cls):
@@ -313,13 +212,12 @@ class TestCountGroupSumOnStart:
         mock_client, _, mock_collection = _setup_mock_mongo()
         mock_client_cls.return_value = mock_client
 
-        env = _make_mock_environment({"seed_docs": 10, "index_type": "category"})
+        env = _make_mock_environment({"seed_docs": 10, "indexSpec": {"category": 1}})
         user = _make_user(CountGroupSumBenchmarkUser, env)
         user.on_start()
 
         mock_collection.create_index.assert_called_once_with(
-            [("category", pymongo.ASCENDING)],
-            name="idx_category_asc",
+            [("category", 1)],
         )
 
     @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
@@ -432,7 +330,7 @@ class TestCountGroupCountOnStart:
 
         assert user.seed_docs == 1000000
         assert user.document_size == 256
-        assert user.index_type == "none"
+        assert user.indexSpec is None
         assert user.match_filter is None
 
     @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
@@ -444,7 +342,7 @@ class TestCountGroupCountOnStart:
             {
                 "seed_docs": 2000,
                 "document_size": 1024,
-                "index_type": "category_value",
+                "indexSpec": {"category": 1, "value": 1},
             }
         )
         user = _make_user(CountGroupCountBenchmarkUser, env)
@@ -452,7 +350,7 @@ class TestCountGroupCountOnStart:
 
         assert user.seed_docs == 2000
         assert user.document_size == 1024
-        assert user.index_type == "category_value"
+        assert user.indexSpec == {"category": 1, "value": 1}
 
     @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
     def test_seeds_collection(self, mock_client_cls):
@@ -470,13 +368,12 @@ class TestCountGroupCountOnStart:
         mock_client, _, mock_collection = _setup_mock_mongo()
         mock_client_cls.return_value = mock_client
 
-        env = _make_mock_environment({"seed_docs": 10, "index_type": "category_value"})
+        env = _make_mock_environment({"seed_docs": 10, "indexSpec": {"category": 1, "value": 1}})
         user = _make_user(CountGroupCountBenchmarkUser, env)
         user.on_start()
 
         mock_collection.create_index.assert_called_once_with(
-            [("category", pymongo.ASCENDING), ("value", pymongo.ASCENDING)],
-            name="idx_category_value_asc",
+            [("category", 1), ("value", 1)],
         )
 
     @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
@@ -578,7 +475,7 @@ class TestCountStageOnStart:
 
         assert user.seed_docs == 1000000
         assert user.document_size == 256
-        assert user.index_type == "none"
+        assert user.indexSpec is None
         assert user.match_filter is None
 
     @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
@@ -590,7 +487,7 @@ class TestCountStageOnStart:
             {
                 "seed_docs": 500,
                 "document_size": 128,
-                "index_type": "wildcard",
+                "indexSpec": {"$**": 1},
             }
         )
         user = _make_user(CountStageBenchmarkUser, env)
@@ -598,7 +495,7 @@ class TestCountStageOnStart:
 
         assert user.seed_docs == 500
         assert user.document_size == 128
-        assert user.index_type == "wildcard"
+        assert user.indexSpec == {"$**": 1}
 
     @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
     def test_seeds_collection(self, mock_client_cls):
@@ -616,13 +513,12 @@ class TestCountStageOnStart:
         mock_client, _, mock_collection = _setup_mock_mongo()
         mock_client_cls.return_value = mock_client
 
-        env = _make_mock_environment({"seed_docs": 10, "index_type": "wildcard"})
+        env = _make_mock_environment({"seed_docs": 10, "indexSpec": {"$**": 1}})
         user = _make_user(CountStageBenchmarkUser, env)
         user.on_start()
 
         mock_collection.create_index.assert_called_once_with(
             [("$**", 1)],
-            name="idx_wildcard",
         )
 
     @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")

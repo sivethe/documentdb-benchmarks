@@ -9,4 +9,4 @@ benchmark_name: count_stage_single_path_index
 run_label: count-stage-single-path-index
 
 workload_params:
-  index_type: "category"
+  indexSpec: {category: 1}

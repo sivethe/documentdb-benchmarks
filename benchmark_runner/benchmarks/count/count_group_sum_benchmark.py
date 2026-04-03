@@ -10,7 +10,7 @@ Pipeline: ``[{$group: {_id: "$category", count: {$sum: 1}}}]``
 Workload parameters (set in config YAML under workload_params):
     seed_docs: int      - documents to seed (default: 1000000)
     document_size: int  - approximate document size in bytes (default: 256)
-    index_type: str     - index to create: none, category, category_value, wildcard (default: none)
+    indexSpec: dict     - index key spec, e.g. {"category": 1} (default: null / no index)
     drop_on_start: bool - drop collection before seeding (default: true)
     match_filter: dict   - optional $match filter prepended to the pipeline (default: none)
     sharded: bool       - enable sharding (default: false)

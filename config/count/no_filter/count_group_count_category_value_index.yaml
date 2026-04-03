@@ -9,4 +9,4 @@ benchmark_name: count_group_count_category_value_index
 run_label: group-count-category-value-index
 
 workload_params:
-  index_type: "category_value"
+  indexSpec: {category: 1, value: 1}
