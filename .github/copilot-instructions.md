@@ -123,6 +123,10 @@ Single INI-style config file shared by both `run-local.sh` and `run-aci.sh`. Sec
 - **`[database_engines]`** — `engine_name=connection_string` pairs. Benchmarks run serially against each engine.
 - **`[benchmarks]`** — One benchmark YAML filename per line (basename only; `config/` is prepended by the scripts).
 
+**`deploy/pipeline.config` is git-ignored** because it contains connection strings and secrets. The checked-in **`deploy/pipeline.config.template`** has the same structure with placeholder values. A devcontainer `postStartCommand` copies the template to `pipeline.config` on first startup if the file doesn't already exist.
+
+**When adding or changing config variables in `pipeline.config.template`, also update `pipeline.config` if it exists locally** (it won't be committed). Both files must stay in sync structurally.
+
 ### Deploy Scripts
 
 - **`deploy/pipeline-common.sh`** — Shared shell logic sourced by both run scripts. Provides: config parsing (`parse_pipeline_config`, `parse_pipeline_args`), path resolution (`resolve_config_path`), helpers (`log`, `organize_results`), run-dir computation (`compute_run_dir`), and summary output.

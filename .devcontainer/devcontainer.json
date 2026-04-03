@@ -3,13 +3,14 @@
   "dockerComposeFile": "docker-compose.yml",
   "service": "devcontainer",
   "workspaceFolder": "/workspace",
-
   "customizations": {
     "vscode": {
       "settings": {
         "python.defaultInterpreterPath": "/usr/local/bin/python",
         "python.testing.pytestEnabled": true,
-        "python.testing.pytestArgs": ["tests"],
+        "python.testing.pytestArgs": [
+          "tests"
+        ],
         "editor.formatOnSave": true,
         "[python]": {
           "editor.defaultFormatter": "charliermarsh.ruff"
@@ -23,14 +24,17 @@
       ]
     }
   },
-
   "postCreateCommand": "pip install -e '.[dev]' && git config core.hooksPath .githooks",
-
-  "forwardPorts": [8089],
+  "postStartCommand": "bash deploy/post-startup.sh",
+  "forwardPorts": [
+    8089
+  ],
   "portsAttributes": {
-    "8089": { "label": "Locust Web UI", "onAutoForward": "notify" }
+    "8089": {
+      "label": "Locust Web UI",
+      "onAutoForward": "notify"
+    }
   },
-
   "containerEnv": {
     "MONGODB_URL": "mongodb://mongodb:27017"
   }
