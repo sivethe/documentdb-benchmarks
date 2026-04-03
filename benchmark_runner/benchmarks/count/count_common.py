@@ -14,12 +14,47 @@ from typing import Any, Dict, List
 
 import pymongo
 
+from benchmark_runner.base_benchmark import MongoUser
 from benchmark_runner.data_generators.document_256byte import generate_document
 
 logger = logging.getLogger(__name__)
 
-# Batch size for bulk seeding operations.
-_SEED_BATCH_SIZE = 10000
+
+class CountBenchmarkUser(MongoUser):
+    """Base class for count/aggregation benchmarks.
+
+    Provides shared ``on_start()`` lifecycle (param reading, seeding,
+    index creation, warmup with explain plan capture).  Subclasses
+    only need to implement ``_build_pipeline()`` and a ``@task`` method.
+    """
+
+    abstract = True
+
+    def on_start(self):
+        """Connect, seed the collection, and create indexes."""
+        super().on_start()
+        self.seed_docs = self.get_param("seed_docs", 1000000)
+        self.document_size = self.get_param("document_size", 256)
+        self.index_type = self.get_param("index_type", "none")
+        self.match_filter = self.get_param("match_filter", None)
+        # seed_collection() and run_warmup() require a callable that is invoked
+        # later under a class-level lock so only one user performs the work.
+        self.seed_collection(self._seed_and_index, drop=self.get_param("drop_on_start", True))
+        self.run_warmup(self._warmup)
+
+    def _warmup(self):
+        """Capture the explain plan during the warmup phase."""
+        self.capture_explain_plan(lambda: self.explain_aggregation(self._build_pipeline()))
+
+    def _seed_and_index(self):
+        """Seed documents and create optional indexes."""
+        seed_count_collection(self.collection, self.seed_docs, self.document_size)
+        db_engine = self.config.database_engine if self.config else ""
+        create_indexes(self.collection, self.index_type, database_engine=db_engine)
+
+    def _build_pipeline(self):
+        """Build the aggregation pipeline.  Must be overridden by subclasses."""
+        raise NotImplementedError
 
 
 def seed_count_collection(

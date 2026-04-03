@@ -124,6 +124,7 @@ All benchmarks extend `MongoUser`, which provides:
 | `self.seed_collection(fn, drop)` | Run a seed function exactly once across all concurrent users |
 | `self.run_warmup(fn)` | Run warmup actions exactly once after seeding; signals the runner that setup is complete |
 | `self.capture_explain_plan(fn)` | Run a function once and save its return value as the explain plan |
+| `self.explain_aggregation(pipeline)` | Convenience wrapper for `db.command("explain", ...)` on an aggregation pipeline |
 | `self.fail_if_sharding_error(name)` | Check for sharding failure and report a Locust failure if so |
 
 ### Warmup Phase
@@ -165,35 +166,35 @@ setup is complete.
 once (after seeding) and stores the returned dict. The runner writes it
 to `<csv_prefix>_explain.json` in the results directory.
 
-Pattern:
-1. Define a private method that builds the pipeline/query and calls
-   `self.db.command("explain", ..., verbosity="allPlansExecution")`.
-2. Factor the pipeline/query construction into a shared helper (e.g.
-   `_build_pipeline()`) so the `@task` method and explain method use the
-   same logic.
-3. Call `self.capture_explain_plan(self._my_explain)` inside the
-   warmup function passed to `run_warmup()`.
+For aggregation benchmarks, use the built-in `self.explain_aggregation(pipeline)`
+method which wraps `db.command("explain", ...)` using the current database
+and collection:
 
-Example (from `count_group_sum_benchmark.py`):
 ```python
 def _warmup(self):
-    self.capture_explain_plan(self._explain_group_sum)
+    self.capture_explain_plan(
+        lambda: self.explain_aggregation(self._build_pipeline())
+    )
+```
 
-def _build_pipeline(self):
-    pipeline = []
-    if self.match_filter:
-        pipeline.append({"$match": self.match_filter})
-    pipeline.append({"$group": {"_id": "$category", "count": {"$sum": 1}}})
-    return pipeline
+For non-aggregation benchmarks (e.g. find, update), define a private
+method that calls `self.db.command("explain", ...)` directly:
 
-def _explain_group_sum(self) -> dict:
+```python
+def _warmup(self):
+    self.capture_explain_plan(self._explain_find)
+
+def _explain_find(self) -> dict:
     return self.db.command(
         "explain",
-        {"aggregate": self.collection.name,
-         "pipeline": self._build_pipeline(), "cursor": {}},
+        {"find": self.collection.name, "filter": {"key": "value"}},
         verbosity="allPlansExecution",
     )
 ```
+
+In both cases, factor the query/pipeline construction into a shared
+helper (e.g. `_build_pipeline()`) so the `@task` method and explain
+capture use the same logic.
 
 Explain capture is optional and best suited for **read-heavy benchmarks**
 (aggregations, finds, count queries) where the query plan is critical for
@@ -204,6 +205,88 @@ investigating performance. Insert-only benchmarks typically do not need it.
 When a benchmark defines multiple `@task` methods, each task **must** expose a
 configurable weight via `workload_params` so users can selectively enable or
 disable individual tasks from the YAML config without editing Python code.
+
+### Benchmark Family Base Class Pattern
+
+When a benchmark category has multiple variants that share the same
+lifecycle (param reading, seeding, index creation, warmup) and only
+differ in their core operation, introduce an **intermediate abstract
+base class** in the category's `*_common.py` module.
+
+This avoids duplicating `on_start()`, `_seed_and_index()`, and
+`_warmup()` across every variant.  Subclasses only need to implement
+the operation-specific method(s) and a `@task`.
+
+**Structure:**
+
+```
+benchmark_runner/benchmarks/my_category/
+    my_category_common.py       # MyCategoryBenchmarkUser(MongoUser) + helpers
+    my_variant_a_benchmark.py   # VariantAUser(MyCategoryBenchmarkUser)
+    my_variant_b_benchmark.py   # VariantBUser(MyCategoryBenchmarkUser)
+```
+
+**Base class** (in `*_common.py`):
+
+```python
+from benchmark_runner.base_benchmark import MongoUser
+
+class MyCategoryBenchmarkUser(MongoUser):
+    """Abstract base for my_category benchmarks."""
+
+    abstract = True
+
+    def on_start(self):
+        super().on_start()
+        self.my_param = self.get_param("my_param", "default")
+        # seed_collection() and run_warmup() require a callable that is
+        # invoked later under a class-level lock so only one user
+        # performs the work.
+        self.seed_collection(self._seed_and_index, drop=...)
+        self.run_warmup(self._warmup)
+
+    def _seed_and_index(self):
+        seed_my_collection(self.collection, ...)
+        create_indexes(self.collection, ...)
+
+    def _warmup(self):
+        self.capture_explain_plan(
+            lambda: self.explain_aggregation(self._build_pipeline())
+        )
+
+    def _build_pipeline(self):
+        raise NotImplementedError
+```
+
+**Variant** (in `*_benchmark.py`):
+
+```python
+from benchmark_runner.benchmarks.my_category.my_category_common import (
+    MyCategoryBenchmarkUser,
+)
+
+class VariantAUser(MyCategoryBenchmarkUser):
+    wait_time = between(0.01, 0.05)
+
+    def _build_pipeline(self):
+        return [{"$group": {"_id": "$field", "count": {"$sum": 1}}}]
+
+    @task
+    def variant_a(self):
+        if self.fail_if_sharding_error("variant_a"):
+            return
+        with self.timed_operation("variant_a"):
+            list(self.collection.aggregate(self._build_pipeline()))
+```
+
+**Key rules:**
+- Set `abstract = True` on the intermediate base class so Locust does
+  not instantiate it directly.
+- Keep standalone utility functions (seeding, index creation) as
+  module-level functions when they have independent test coverage or
+  could be reused outside the class.
+- See `benchmark_runner/benchmarks/count/count_common.py` for the
+  reference implementation (`CountBenchmarkUser`).
 
 Pattern:
 1. Define a `<task_name>_weight` workload param with a sensible non-zero default.

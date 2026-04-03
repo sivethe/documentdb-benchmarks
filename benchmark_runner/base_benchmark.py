@@ -338,6 +338,33 @@ class MongoUser(User):
                 logger.warning("Failed to capture explain plan", exc_info=True)
             self.__class__._explain_done = True
 
+    def explain_aggregation(self, pipeline: list) -> dict:
+        """Return the explain plan for an aggregation pipeline.
+
+        Convenience wrapper around ``db.command("explain", ...)`` that
+        uses the current database and collection.  Typically passed to
+        ``capture_explain_plan`` during warmup::
+
+            self.capture_explain_plan(
+                lambda: self.explain_aggregation(self._build_pipeline())
+            )
+
+        Args:
+            pipeline: The aggregation pipeline stages.
+
+        Returns:
+            The explain plan output as a dict.
+        """
+        return self.db.command(
+            "explain",
+            {
+                "aggregate": self.collection.name,
+                "pipeline": pipeline,
+                "cursor": {},
+            },
+            verbosity="allPlansExecution",
+        )
+
     def fail_if_sharding_error(self, operation_name: str) -> bool:
         """Check whether sharding setup failed and report a task failure if so.
 
