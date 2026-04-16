@@ -106,7 +106,7 @@ See CONTRIBUTING.md for the full code style guide. Key points:
 ## File Layout Conventions
 
 - Entry points are in `__main__.py` files (delegate to `main()` in the primary module).
-- Shared document generators live in `benchmark_runner/data_generators/` and follow the naming convention `document_<size>[_<trait>].py` (e.g. `document_256byte.py`, `document_4kb_nested.py`).
+- Shared document generators live in `benchmark_runner/data_generators/` and follow the naming convention `document_<characteristic>.py` (e.g. `document_standard.py`, `document_nested.py`). Generators are registered by short name in `data_generators/__init__.py` and selected via the `data_generator` workload parameter in YAML configs.
 - Benchmark YAML configs go in `config/`.
 - Results are written to `results/YYYYMMDD-NNN/<engine_name>/`.
 - Each run produces: `*_stats.csv`, `*_report.md`, `*_metadata.json`.
@@ -146,7 +146,7 @@ Single INI-style config file shared by both `run-local.sh` and `run-aci.sh`. Sec
 See CONTRIBUTING.md for the complete testing guidelines and test patterns.
 
 - **Always run the full test suite (`pytest`) after completing all proposed changes.**
-- Keep class-level state (`_seed_done`, `_extra_seed_done`, `_sharding_error`, `_warmup_done`) reset between tests to ensure isolation.
+- Keep class-level state (`_setup_done`, `_extra_seed_done`, `_sharding_error`) reset between tests to ensure isolation.
 
 ## Common Pitfalls
 

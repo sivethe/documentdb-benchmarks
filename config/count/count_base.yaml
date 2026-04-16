@@ -19,6 +19,7 @@ output_dir: results/count
 # Workload-specific parameters
 workload_params:
   seed_docs: 1000000        # documents to seed in collection
+  data_generator: standard  # document generator (see data_generators/)
   document_size: 256        # bytes per document
   # indexSpec: {category: 1}    # index key spec (null = no index)
   drop_on_start: true       # clean collection before seeding

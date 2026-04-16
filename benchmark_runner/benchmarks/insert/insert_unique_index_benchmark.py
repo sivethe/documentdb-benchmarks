@@ -1,8 +1,8 @@
 """
-Insert Benchmark — unique index on ``timestamp``.
+Insert Benchmark — unique index on ``createdAt``.
 
 Measures insert throughput on a collection that has a unique ascending
-index on the ``timestamp`` field in addition to the default ``_id``
+index on the ``createdAt`` field in addition to the default ``_id``
 index.  Unique indexes add the overhead of a duplicate-key check on
 every insert, so this benchmark captures the additional cost compared
 to a plain (non-unique) secondary index.
@@ -17,17 +17,15 @@ Workload parameters (set in config YAML under workload_params):
 
 import logging
 
-import pymongo
 from locust import task, between
 
 from benchmark_runner.base_benchmark import MongoUser
-from benchmark_runner.data_generators.document_256byte import generate_document
 
 logger = logging.getLogger(__name__)
 
 
 class InsertUniqueIndexBenchmarkUser(MongoUser):
-    """Benchmark user that measures insert performance with a unique index on timestamp."""
+    """Benchmark user that measures insert performance with a unique index on createdAt."""
 
     wait_time = between(0, 0.01)
 
@@ -37,24 +35,16 @@ class InsertUniqueIndexBenchmarkUser(MongoUser):
         self.batch_size = self.get_param("batch_size", 100)
         self.insert_one_weight = self.get_param("insert_one_weight", 3)
         self.insert_many_weight = self.get_param("insert_many_weight", 1)
-        self.seed_collection(self._create_index, drop=self.get_param("drop_on_start", True))
-        self.run_warmup()
+        self.run_once_across_all_users(self._setup)
 
-    def _create_index(self):
-        """Create a unique ascending index on the ``timestamp`` field."""
-        logger.info(
-            "Creating unique ascending index on 'timestamp' for %s",
-            self.collection.name,
-        )
-        kwargs = {}
-        if self.config and self.config.database_engine == "azure_documentdb":
-            kwargs["storageEngine"] = {"enableOrderedIndex": True}
-        self.collection.create_index(
-            [("timestamp", pymongo.ASCENDING)],
-            name="idx_timestamp_unique",
-            unique=True,
-            **kwargs,
-        )
+    def _setup(self):
+        """Drop, configure sharding, create index, and capture indexes."""
+        if self.get_param("drop_on_start", True):
+            self.collection.drop()
+        self._setup_sharding()
+        self.create_indexes({"createdAt": 1}, name="idx_createdAt_unique", unique=True)
+        self._wait_for_index_builds()
+        self._capture_indexes()
 
     @task(3)
     def insert_one_uniqueIndex(self):
@@ -63,7 +53,7 @@ class InsertUniqueIndexBenchmarkUser(MongoUser):
             return
         if self.fail_if_sharding_error("insert_one_uniqueIndex"):
             return
-        doc = generate_document(self.document_size)
+        doc = self.generate_document(self.document_size)
         with self.timed_operation("insert_one_uniqueIndex"):
             self.collection.insert_one(doc)
 
@@ -74,6 +64,6 @@ class InsertUniqueIndexBenchmarkUser(MongoUser):
             return
         if self.fail_if_sharding_error("insert_many_uniqueIndex"):
             return
-        docs = [generate_document(self.document_size) for _ in range(self.batch_size)]
+        docs = [self.generate_document(self.document_size) for _ in range(self.batch_size)]
         with self.timed_operation("insert_many_uniqueIndex"):
             self.collection.insert_many(docs)

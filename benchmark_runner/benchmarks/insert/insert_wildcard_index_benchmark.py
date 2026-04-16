@@ -19,7 +19,6 @@ import logging
 from locust import task, between
 
 from benchmark_runner.base_benchmark import MongoUser
-from benchmark_runner.data_generators.document_256byte import generate_document
 
 logger = logging.getLogger(__name__)
 
@@ -35,23 +34,16 @@ class InsertWildcardIndexBenchmarkUser(MongoUser):
         self.batch_size = self.get_param("batch_size", 100)
         self.insert_one_weight = self.get_param("insert_one_weight", 3)
         self.insert_many_weight = self.get_param("insert_many_weight", 1)
-        self.seed_collection(self._create_index, drop=self.get_param("drop_on_start", True))
-        self.run_warmup()
+        self.run_once_across_all_users(self._setup)
 
-    def _create_index(self):
-        """Create a root wildcard index on all fields."""
-        logger.info(
-            "Creating wildcard index '$**' for %s",
-            self.collection.name,
-        )
-        kwargs = {}
-        if self.config and self.config.database_engine == "azure_documentdb":
-            kwargs["storageEngine"] = {"enableOrderedIndex": True}
-        self.collection.create_index(
-            [("$**", 1)],
-            name="idx_wildcard",
-            **kwargs,
-        )
+    def _setup(self):
+        """Drop, configure sharding, create index, and capture indexes."""
+        if self.get_param("drop_on_start", True):
+            self.collection.drop()
+        self._setup_sharding()
+        self.create_indexes({"$**": 1}, name="idx_wildcard")
+        self._wait_for_index_builds()
+        self._capture_indexes()
 
     @task(3)
     def insert_one_wildcardIndex(self):
@@ -60,7 +52,7 @@ class InsertWildcardIndexBenchmarkUser(MongoUser):
             return
         if self.fail_if_sharding_error("insert_one_wildcardIndex"):
             return
-        doc = generate_document(self.document_size)
+        doc = self.generate_document(self.document_size)
         with self.timed_operation("insert_one_wildcardIndex"):
             self.collection.insert_one(doc)
 
@@ -71,6 +63,6 @@ class InsertWildcardIndexBenchmarkUser(MongoUser):
             return
         if self.fail_if_sharding_error("insert_many_wildcardIndex"):
             return
-        docs = [generate_document(self.document_size) for _ in range(self.batch_size)]
+        docs = [self.generate_document(self.document_size) for _ in range(self.batch_size)]
         with self.timed_operation("insert_many_wildcardIndex"):
             self.collection.insert_many(docs)

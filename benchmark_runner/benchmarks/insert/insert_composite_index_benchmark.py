@@ -1,8 +1,8 @@
 """
-Insert Benchmark — composite index on ``category`` + ``timestamp``.
+Insert Benchmark — composite index on ``category`` + ``createdAt``.
 
 Measures insert throughput on a collection that has a compound
-ascending index on ``(category, timestamp)`` in addition to the default
+ascending index on ``(category, createdAt)`` in addition to the default
 ``_id`` index.  This isolates the cost of maintaining a multi-key
 B-tree index during writes.
 
@@ -16,11 +16,9 @@ Workload parameters (set in config YAML under workload_params):
 
 import logging
 
-import pymongo
 from locust import task, between
 
 from benchmark_runner.base_benchmark import MongoUser
-from benchmark_runner.data_generators.document_256byte import generate_document
 
 logger = logging.getLogger(__name__)
 
@@ -36,23 +34,16 @@ class InsertCompositeIndexBenchmarkUser(MongoUser):
         self.batch_size = self.get_param("batch_size", 100)
         self.insert_one_weight = self.get_param("insert_one_weight", 3)
         self.insert_many_weight = self.get_param("insert_many_weight", 1)
-        self.seed_collection(self._create_index, drop=self.get_param("drop_on_start", True))
-        self.run_warmup()
+        self.run_once_across_all_users(self._setup)
 
-    def _create_index(self):
-        """Create a composite ascending index on ``category`` + ``timestamp``."""
-        logger.info(
-            "Creating composite index on 'category' + 'timestamp' for %s",
-            self.collection.name,
-        )
-        kwargs = {}
-        if self.config and self.config.database_engine == "azure_documentdb":
-            kwargs["storageEngine"] = {"enableOrderedIndex": True}
-        self.collection.create_index(
-            [("category", pymongo.ASCENDING), ("timestamp", pymongo.ASCENDING)],
-            name="idx_category_timestamp_asc",
-            **kwargs,
-        )
+    def _setup(self):
+        """Drop, configure sharding, create index, and capture indexes."""
+        if self.get_param("drop_on_start", True):
+            self.collection.drop()
+        self._setup_sharding()
+        self.create_indexes({"category": 1, "createdAt": 1}, name="idx_category_createdAt_asc")
+        self._wait_for_index_builds()
+        self._capture_indexes()
 
     @task(3)
     def insert_one_compositeIndex(self):
@@ -61,7 +52,7 @@ class InsertCompositeIndexBenchmarkUser(MongoUser):
             return
         if self.fail_if_sharding_error("insert_one_compositeIndex"):
             return
-        doc = generate_document(self.document_size)
+        doc = self.generate_document(self.document_size)
         with self.timed_operation("insert_one_compositeIndex"):
             self.collection.insert_one(doc)
 
@@ -72,6 +63,6 @@ class InsertCompositeIndexBenchmarkUser(MongoUser):
             return
         if self.fail_if_sharding_error("insert_many_compositeIndex"):
             return
-        docs = [generate_document(self.document_size) for _ in range(self.batch_size)]
+        docs = [self.generate_document(self.document_size) for _ in range(self.batch_size)]
         with self.timed_operation("insert_many_compositeIndex"):
             self.collection.insert_many(docs)

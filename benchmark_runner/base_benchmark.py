@@ -10,6 +10,7 @@ Provides a MongoUser base class that handles:
 """
 
 import logging
+import math
 import threading
 import time
 from typing import Any, Callable, Dict, List, Optional
@@ -17,6 +18,8 @@ from typing import Any, Callable, Dict, List, Optional
 from gevent import GreenletExit
 import pymongo
 from locust import User, between
+
+from benchmark_runner.data_generators import get_generator
 
 logger = logging.getLogger(__name__)
 
@@ -47,23 +50,21 @@ class MongoUser(User):
     # Abstract: no host needed (we use mongodb_url from config)
     abstract = True
 
-    # Class-level lock for coordinating seed operations across users.
+    # Class-level lock for coordinating one-time setup across users.
     # Each concrete subclass gets its own lock via __init_subclass__.
-    _seed_lock: threading.Lock
-    _seed_done: bool = False
+    _setup_lock: threading.Lock
+    _setup_done: bool = False
 
     def __init_subclass__(cls, **kwargs):
-        """Give each benchmark subclass its own seed lock and flag."""
+        """Give each benchmark subclass its own setup lock and flag."""
         super().__init_subclass__(**kwargs)
-        cls._seed_lock = threading.Lock()
-        cls._seed_done = False
+        cls._setup_lock = threading.Lock()
+        cls._setup_done = False
         cls._sharding_error: Optional[str] = None
         cls._explain_lock = threading.Lock()
         cls._explain_done = False
         cls._explain_result: Optional[dict] = None
         cls._indexes_result: Optional[List[dict]] = None
-        cls._warmup_lock = threading.Lock()
-        cls._warmup_done = False
 
     def __init__(self, environment):
         super().__init__(environment)
@@ -90,6 +91,10 @@ class MongoUser(User):
         self.db = self.client[database]
         self.collection = self.db[collection]
 
+        # Resolve the document generator from config (default: "standard")
+        generator_name = self.get_param("data_generator", "standard")
+        self.generate_document = get_generator(generator_name)
+
     def on_stop(self):
         """Close MongoDB connection when the user stops."""
         if self.client:
@@ -104,52 +109,53 @@ class MongoUser(User):
         """Get a workload parameter by key with optional default."""
         return self._workload_params.get(key, default)
 
-    def seed_collection(
-        self,
-        seed_func: Callable[[], None],
-        drop: bool = True,
-    ) -> None:
-        """Run a seed function exactly once across all concurrent users.
+    def save_json(self, filename: str, data) -> None:
+        """Save data as a JSON file in the run output directory.
 
-        Uses a class-level lock so only the first user to call this
-        method performs the drop + seed. All other users block until
-        seeding is finished, then proceed directly.
+        Delegates to the ``save_json`` callback on the Locust
+        environment (registered by the runner).  The file is written
+        to ``output_dir / csv_prefix_filename``.
 
-        If workload_params include ``sharded: true``, the collection is
-        sharded using the configured ``shard_key`` (default ``"_id"``).
-        Supported shard keys: ``"_id"`` and ``"category"``.
+        This is a no-op when no callback is registered (e.g. in unit
+        tests that don't set up the runner environment).
 
         Args:
-            seed_func: Callable that performs the actual inserts and
-                       index creation. It should use ``ordered=False``
-                       on ``insert_many`` calls for safety.
-            drop: Whether to drop the collection before seeding.
+            filename: Output filename suffix (e.g. ``"getIndexes.json"``).
+            data: JSON-serialisable data to write.
         """
-        with self.__class__._seed_lock:
-            if self.__class__._seed_done:
+        save_fn = getattr(self.environment, "save_json", None)
+        if save_fn:
+            save_fn(filename, data)
+
+    def run_once_across_all_users(
+        self,
+        setup_func: Callable[[], None],
+    ) -> None:
+        """Run a setup function exactly once across all concurrent users.
+
+        Uses a class-level lock so only the first user to call this
+        method executes *setup_func*.  All other users block until it
+        finishes, then proceed directly.
+
+        The setup function is responsible for the full setup sequence
+        (drop, sharding, seeding, index creation, warmup, etc.).
+        Helper methods on ``MongoUser`` — such as ``_setup_sharding()``,
+        ``_wait_for_index_builds()``, ``_capture_indexes()``, and
+        ``capture_explain_plan()`` — are available for use inside
+        *setup_func*.
+
+        Call this at the end of ``on_start()``, after reading workload
+        parameters.
+
+        Args:
+            setup_func: Callable that performs all one-time setup work.
+        """
+        with self.__class__._setup_lock:
+            if self.__class__._setup_done:
                 return
-
-            if drop:
-                try:
-                    self.collection.drop()
-                    logger.info("Dropped collection %s", self.collection.name)
-                except Exception:
-                    pass
-
-            # Configure sharding if requested
-            self._setup_sharding()
-
-            seed_func()
-
-            # Wait for any async index builds to finish.
-            self._wait_for_index_builds()
-
-            self.__class__._seed_done = True
-            logger.info(
-                "Seeding complete for %s (%s docs)",
-                self.collection.name,
-                self.collection.estimated_document_count(),
-            )
+            setup_func()
+            self.__class__._setup_done = True
+            logger.info("Setup complete for %s", self.__class__.__name__)
 
     def _wait_for_index_builds(self, poll_interval: float = 2.0, timeout: int = 600) -> None:
         """Poll ``currentOp`` until no index builds are running on the collection.
@@ -202,14 +208,11 @@ class MongoUser(User):
         )
 
     def _capture_indexes(self) -> None:
-        """Run ``list_indexes()`` and store the result on the class.
-
-        The runner writes the captured list to
-        ``<csv_prefix>_getIndexes.json`` in the output directory.
-        """
+        """Run ``list_indexes()`` and save the result as JSON immediately."""
         try:
             indexes = [idx for idx in self.collection.list_indexes()]
             self.__class__._indexes_result = indexes
+            self.save_json("getIndexes.json", indexes)
             index_names = [idx.get("name", "?") for idx in indexes]
             logger.info(
                 "Indexes on %s: %s",
@@ -318,46 +321,64 @@ class MongoUser(User):
         logger.info("Created index '%s' on %s (spec: %s)", name, self.collection.name, keys)
         return [name]
 
-    def run_warmup(self, warmup_func: Optional[Callable[[], None]] = None) -> None:
-        """Run warmup actions exactly once, after seeding, before measurement.
+    def seed_collection(
+        self,
+        num_docs: int,
+        document_size: int = 256,
+        batch_size: int = 10000,
+    ) -> int:
+        """Seed the collection with generated documents.
 
-        The warmup phase executes after ``seed_collection()`` and before
-        the runner resets Locust stats.  Any operations performed here
-        (index snapshots, explain plans, cache-warming queries, etc.)
-        are guaranteed to be excluded from measured results.
-
-        The base implementation always captures the current index list
-        via ``list_indexes()``.  Pass an optional *warmup_func* to
-        perform additional one-time actions such as
-        ``capture_explain_plan()``.
-
-        Call this at the end of ``on_start()``, **after**
-        ``seed_collection()``.
+        Documents are produced by ``self.generate_document`` (resolved
+        during ``on_start`` from the ``data_generator`` workload param)
+        and inserted in batches using ``insert_many(ordered=False)``.
 
         Args:
-            warmup_func: Optional callable that performs additional
-                         warmup actions (e.g. explain plan capture).
-                         Called exactly once across all concurrent
-                         users of the same benchmark class.
+            num_docs: Total number of documents to insert.
+            document_size: Approximate size of each document in bytes.
+            batch_size: Number of documents per ``insert_many`` call.
+
+        Returns:
+            The total number of documents inserted.
         """
-        with self.__class__._warmup_lock:
-            if self.__class__._warmup_done:
-                return
-            self._capture_indexes()
-            if warmup_func:
-                warmup_func()
-            self.__class__._warmup_done = True
-            logger.info("Warmup complete for %s", self.__class__.__name__)
+        logger.info(
+            "Seeding %s with %d docs (document_size=%d, batch_size=%d)",
+            self.collection.name,
+            num_docs,
+            document_size,
+            batch_size,
+        )
+
+        total_inserted = 0
+        total_batches = math.ceil(num_docs / batch_size)
+
+        for batch_idx in range(total_batches):
+            batch_start = batch_idx * batch_size
+            batch_end = min(batch_start + batch_size, num_docs)
+            current_batch_size = batch_end - batch_start
+
+            batch = [self.generate_document(document_size) for _ in range(current_batch_size)]
+            self.collection.insert_many(batch, ordered=False)
+            total_inserted += len(batch)
+
+            if (batch_idx + 1) % 10 == 0 or batch_idx == total_batches - 1:
+                logger.info(
+                    "  Seeded %d / %d docs (%.0f%%)",
+                    total_inserted,
+                    num_docs,
+                    100.0 * total_inserted / num_docs,
+                )
+
+        logger.info("Seeding complete: %d total documents", total_inserted)
+        return total_inserted
 
     def capture_explain_plan(self, explain_func: Callable[[], dict]) -> None:
-        """Run an explain function exactly once and store its output.
+        """Run an explain function exactly once and save its output as JSON.
 
         Uses a class-level lock so only the first user to call this
-        method executes *explain_func*. The returned dict is stored on
-        the class and later written to ``<name>_explain.json`` by the
-        runner.
-
-        Call this in ``on_start()`` **after** ``seed_collection()``.
+        method executes *explain_func*. The returned dict is saved
+        immediately via ``save_json()`` and also stored on the class
+        for programmatic access.
 
         Args:
             explain_func: Callable that returns a dict containing the
@@ -370,6 +391,7 @@ class MongoUser(User):
             try:
                 result = explain_func()
                 self.__class__._explain_result = result
+                self.save_json("explain.json", result)
                 logger.info("Explain plan captured for %s", self.__class__.__name__)
             except Exception:
                 logger.warning("Failed to capture explain plan", exc_info=True)

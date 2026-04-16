@@ -41,11 +41,11 @@ def _mask_url(url: str) -> str:
 
 
 def _wait_for_setup_complete(user_classes: list, timeout: int = 600) -> float:
-    """Wait for all benchmark user classes to finish seeding and warmup.
+    """Wait for all benchmark user classes to finish setup.
 
-    Polls ``_seed_done`` and ``_warmup_done`` on each user class until
-    all report ``True`` or the *timeout* is reached.  Returns the number
-    of seconds spent waiting so callers can log how long setup took.
+    Polls ``_setup_done`` on each user class until all report ``True``
+    or the *timeout* is reached.  Returns the number of seconds spent
+    waiting so callers can log how long setup took.
 
     Args:
         user_classes: Locust User subclasses discovered for this run.
@@ -58,7 +58,7 @@ def _wait_for_setup_complete(user_classes: list, timeout: int = 600) -> float:
     start = time.monotonic()
     while time.monotonic() - start < timeout:
         if all(
-            getattr(cls, "_seed_done", True) and getattr(cls, "_warmup_done", True)
+            getattr(cls, "_setup_done", True)
             for cls in user_classes
         ):
             elapsed = time.monotonic() - start
@@ -197,6 +197,20 @@ def run_benchmark(config: BenchmarkConfig):
     # Attach our config to the environment so MongoUser can access it
     env.benchmark_config = config
 
+    # Attach a save_json callback so benchmarks can write JSON files
+    # during setup without knowing the output path.
+    def _save_json(filename: str, data) -> None:
+        """Write *data* as JSON to ``output_dir / csv_prefix_filename``."""
+        path = output_dir / f"{config.csv_prefix}_{filename}"
+        try:
+            with open(path, "w") as f:
+                json.dump(data, f, indent=2, default=str)
+            logger.info("Saved %s", path)
+        except Exception:
+            logger.warning("Failed to save %s", path, exc_info=True)
+
+    env.save_json = _save_json
+
     # Enable CSV stats writing
     csv_path = str(output_dir / config.csv_prefix)
     locust.stats.CSV_STATS_INTERVAL_SEC = 5
@@ -253,12 +267,6 @@ def run_benchmark(config: BenchmarkConfig):
     json_report_path = str(output_dir / config.json_report_file)
     _save_json_report(env, config, json_report_path, start_time, end_time)
 
-    # Save explain plans (if any benchmark captured one)
-    _save_explain_plans(user_classes, output_dir, config.csv_prefix)
-
-    # Save index lists (if any benchmark captured them)
-    _save_indexes(user_classes, output_dir, config.csv_prefix)
-
     # Save run metadata for analyzer
     save_run_metadata(config, output_dir, start_time, end_time)
 
@@ -270,47 +278,6 @@ def run_benchmark(config: BenchmarkConfig):
     logger.info(f"  Markdown report: {report_path}")
     logger.info(f"  JSON report: {json_report_path}")
     logger.info(f"  Metadata: {csv_path}_metadata.json")
-
-
-def _save_explain_plans(user_classes: list, output_dir: Path, csv_prefix: str) -> None:
-    """Write captured explain plans to JSON files in the output directory.
-
-    Each user class that called ``capture_explain_plan()`` during its
-    ``on_start()`` will have a ``_explain_result`` dict stored at class
-    level.  This function iterates over all user classes and writes each
-    non-None result to ``<csv_prefix>_explain.json``.
-    """
-    for cls in user_classes:
-        result = getattr(cls, "_explain_result", None)
-        if result is None:
-            continue
-        explain_path = output_dir / f"{csv_prefix}_explain.json"
-        try:
-            with open(explain_path, "w") as f:
-                json.dump(result, f, indent=2, default=str)
-            logger.info("Explain plan saved to %s", explain_path)
-        except Exception:
-            logger.warning("Failed to save explain plan for %s", cls.__name__, exc_info=True)
-
-
-def _save_indexes(user_classes: list, output_dir: Path, csv_prefix: str) -> None:
-    """Write captured index lists to a JSON file in the output directory.
-
-    Each user class stores its ``list_indexes()`` result in
-    ``_indexes_result`` after seeding.  This function writes the first
-    non-None result to ``<csv_prefix>_getIndexes.json``.
-    """
-    for cls in user_classes:
-        result = getattr(cls, "_indexes_result", None)
-        if result is None:
-            continue
-        indexes_path = output_dir / f"{csv_prefix}_getIndexes.json"
-        try:
-            with open(indexes_path, "w") as f:
-                json.dump(result, f, indent=2, default=str)
-            logger.info("Index list saved to %s", indexes_path)
-        except Exception:
-            logger.warning("Failed to save index list for %s", cls.__name__, exc_info=True)
 
 
 def _final_flush_csv(stats_csv_writer: locust.stats.StatsCSVFileWriter) -> None:
