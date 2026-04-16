@@ -11,9 +11,7 @@ from unittest.mock import MagicMock, patch
 
 from locust.env import Environment
 
-from benchmark_runner.benchmarks.count.count_common import (
-    seed_count_collection,
-)
+from benchmark_runner.base_benchmark import MongoUser
 from benchmark_runner.benchmarks.count.count_group_sum_benchmark import (
     CountGroupSumBenchmarkUser,
 )
@@ -47,12 +45,11 @@ def _make_mock_environment(workload_params=None, database_engine=""):
 
 def _reset_class(cls):
     """Reset class-level seed flags so tests are isolated."""
-    cls._seed_done = False
+    cls._setup_done = False
     cls._sharding_error = None
     cls._explain_done = False
     cls._explain_result = None
     cls._indexes_result = None
-    cls._warmup_done = False
 
 
 def _make_user(cls, env):
@@ -77,70 +74,73 @@ def _setup_mock_mongo():
 
 
 # ===========================================================================
-# count_common — seed_count_collection
+# MongoUser.seed_collection
 # ===========================================================================
 
 
-class TestSeedCountCollection:
-    """Verify seed_count_collection inserts documents correctly."""
+class TestSeedCollection:
+    """Verify MongoUser.seed_collection inserts documents correctly."""
 
-    def test_inserts_correct_total(self):
+    def _make_seeder(self):
+        """Create a minimal MongoUser-like object with seed_collection bound."""
         mock_collection = MagicMock()
         mock_collection.name = "test_col"
+        user = MagicMock(spec=MongoUser)
+        user.collection = mock_collection
+        user.generate_document = MagicMock(side_effect=lambda size: {"_id": "x", "category": "A", "value": 1})
+        user.seed_collection = MongoUser.seed_collection.__get__(user, MongoUser)
+        return user, mock_collection
 
-        seed_count_collection(mock_collection, num_docs=100, batch_size=50)
+    def test_inserts_correct_total(self):
+        user, mock_collection = self._make_seeder()
+
+        user.seed_collection(num_docs=100, batch_size=50)
 
         assert mock_collection.insert_many.call_count == 2
         total_docs = sum(len(c.args[0]) for c in mock_collection.insert_many.call_args_list)
         assert total_docs == 100
 
     def test_small_batch(self):
-        mock_collection = MagicMock()
-        mock_collection.name = "test_col"
+        user, mock_collection = self._make_seeder()
 
-        seed_count_collection(mock_collection, num_docs=25, batch_size=10)
+        user.seed_collection(num_docs=25, batch_size=10)
 
         assert mock_collection.insert_many.call_count == 3
         total_docs = sum(len(c.args[0]) for c in mock_collection.insert_many.call_args_list)
         assert total_docs == 25
 
     def test_single_batch(self):
-        mock_collection = MagicMock()
-        mock_collection.name = "test_col"
+        user, mock_collection = self._make_seeder()
 
-        seed_count_collection(mock_collection, num_docs=5, batch_size=10000)
+        user.seed_collection(num_docs=5, batch_size=10000)
 
         assert mock_collection.insert_many.call_count == 1
         docs = mock_collection.insert_many.call_args.args[0]
         assert len(docs) == 5
 
-    def test_documents_have_expected_fields(self):
-        mock_collection = MagicMock()
-        mock_collection.name = "test_col"
+    def test_documents_use_generate_document(self):
+        user, mock_collection = self._make_seeder()
 
-        seed_count_collection(mock_collection, num_docs=3, batch_size=10)
+        user.seed_collection(num_docs=3, batch_size=10)
 
         docs = mock_collection.insert_many.call_args.args[0]
         for doc in docs:
             assert "_id" in doc
             assert "category" in doc
             assert "value" in doc
-            assert doc["category"] in ["A", "B", "C", "D", "E"]
 
     def test_ordered_false(self):
-        mock_collection = MagicMock()
-        mock_collection.name = "test_col"
+        user, mock_collection = self._make_seeder()
 
-        seed_count_collection(mock_collection, num_docs=10, batch_size=10)
+        user.seed_collection(num_docs=10, batch_size=10)
 
         _, kwargs = mock_collection.insert_many.call_args
         assert kwargs.get("ordered") is False
 
     def test_returns_total_inserted(self):
-        mock_collection = MagicMock()
-        mock_collection.name = "test_col"
+        user, mock_collection = self._make_seeder()
 
-        result = seed_count_collection(mock_collection, num_docs=50, batch_size=20)
+        result = user.seed_collection(num_docs=50, batch_size=20)
         assert result == 50
 
 
@@ -923,7 +923,7 @@ class TestCountStageExplain:
 
 
 class TestCountWarmupPhase:
-    """Verify run_warmup() sets _warmup_done and captures indexes."""
+    """Verify run_once_across_all_users() sets _setup_done and captures indexes."""
 
     @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
     def test_warmup_sets_done_flag_group_sum(self, mock_client_cls):
@@ -934,7 +934,7 @@ class TestCountWarmupPhase:
         user = _make_user(CountGroupSumBenchmarkUser, env)
         user.on_start()
 
-        assert CountGroupSumBenchmarkUser._warmup_done is True
+        assert CountGroupSumBenchmarkUser._setup_done is True
 
     @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
     def test_warmup_sets_done_flag_group_count(self, mock_client_cls):
@@ -945,7 +945,7 @@ class TestCountWarmupPhase:
         user = _make_user(CountGroupCountBenchmarkUser, env)
         user.on_start()
 
-        assert CountGroupCountBenchmarkUser._warmup_done is True
+        assert CountGroupCountBenchmarkUser._setup_done is True
 
     @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
     def test_warmup_sets_done_flag_count_stage(self, mock_client_cls):
@@ -956,7 +956,7 @@ class TestCountWarmupPhase:
         user = _make_user(CountStageBenchmarkUser, env)
         user.on_start()
 
-        assert CountStageBenchmarkUser._warmup_done is True
+        assert CountStageBenchmarkUser._setup_done is True
 
     @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
     def test_warmup_captures_indexes(self, mock_client_cls):

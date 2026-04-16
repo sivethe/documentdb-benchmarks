@@ -146,7 +146,7 @@ Single INI-style config file shared by both `run-local.sh` and `run-aci.sh`. Sec
 See CONTRIBUTING.md for the complete testing guidelines and test patterns.
 
 - **Always run the full test suite (`pytest`) after completing all proposed changes.**
-- Keep class-level state (`_seed_done`, `_extra_seed_done`, `_sharding_error`, `_warmup_done`) reset between tests to ensure isolation.
+- Keep class-level state (`_setup_done`, `_extra_seed_done`, `_sharding_error`) reset between tests to ensure isolation.
 
 ## Common Pitfalls
 

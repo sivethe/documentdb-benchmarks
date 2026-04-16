@@ -17,7 +17,6 @@ Workload parameters (set in config YAML under workload_params):
 
 import logging
 
-import pymongo
 from locust import task, between
 
 from benchmark_runner.base_benchmark import MongoUser
@@ -36,24 +35,16 @@ class InsertUniqueIndexBenchmarkUser(MongoUser):
         self.batch_size = self.get_param("batch_size", 100)
         self.insert_one_weight = self.get_param("insert_one_weight", 3)
         self.insert_many_weight = self.get_param("insert_many_weight", 1)
-        self.seed_collection(self._create_index, drop=self.get_param("drop_on_start", True))
-        self.run_warmup()
+        self.run_once_across_all_users(self._setup)
 
-    def _create_index(self):
-        """Create a unique ascending index on the ``createdAt`` field."""
-        logger.info(
-            "Creating unique ascending index on 'createdAt' for %s",
-            self.collection.name,
-        )
-        kwargs = {}
-        if self.config and self.config.database_engine == "azure_documentdb":
-            kwargs["storageEngine"] = {"enableOrderedIndex": True}
-        self.collection.create_index(
-            [("createdAt", pymongo.ASCENDING)],
-            name="idx_createdAt_unique",
-            unique=True,
-            **kwargs,
-        )
+    def _setup(self):
+        """Drop, configure sharding, create index, and capture indexes."""
+        if self.get_param("drop_on_start", True):
+            self.collection.drop()
+        self._setup_sharding()
+        self.create_indexes({"createdAt": 1}, name="idx_createdAt_unique", unique=True)
+        self._wait_for_index_builds()
+        self._capture_indexes()
 
     @task(3)
     def insert_one_uniqueIndex(self):

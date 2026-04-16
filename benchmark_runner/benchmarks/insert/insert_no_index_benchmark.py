@@ -34,8 +34,14 @@ class InsertNoIndexBenchmarkUser(MongoUser):
         self.batch_size = self.get_param("batch_size", 100)
         self.insert_one_weight = self.get_param("insert_one_weight", 3)
         self.insert_many_weight = self.get_param("insert_many_weight", 1)
-        self.seed_collection(lambda: None, drop=self.get_param("drop_on_start", True))
-        self.run_warmup()
+        self.run_once_across_all_users(self._setup)
+
+    def _setup(self):
+        """Drop, configure sharding, and capture indexes."""
+        if self.get_param("drop_on_start", True):
+            self.collection.drop()
+        self._setup_sharding()
+        self._capture_indexes()
 
     @task(3)
     def insert_one(self):

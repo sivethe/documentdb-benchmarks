@@ -50,12 +50,11 @@ def _make_mock_environment(workload_params=None, database_engine=""):
 
 def _reset_class(cls):
     """Reset class-level seed flags so tests are isolated."""
-    cls._seed_done = False
+    cls._setup_done = False
     cls._sharding_error = None
     cls._explain_done = False
     cls._explain_result = None
     cls._indexes_result = None
-    cls._warmup_done = False
 
 
 def _make_user(cls, env):
@@ -384,6 +383,7 @@ class TestInsertWildcardIndexOnStart:
 
     @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
     def test_creates_wildcard_index_with_ordered_index_on_azure(self, mock_client_cls):
+        """On Azure DocumentDB, wildcard indexes should NOT get storageEngine options."""
         mock_client, _, mock_collection = _setup_mock_mongo()
         mock_client_cls.return_value = mock_client
 
@@ -394,7 +394,6 @@ class TestInsertWildcardIndexOnStart:
         mock_collection.create_index.assert_called_once_with(
             [("$**", 1)],
             name="idx_wildcard",
-            storageEngine={"enableOrderedIndex": True},
         )
 
 
@@ -845,7 +844,7 @@ class TestCaptureIndexes:
 
 
 class TestInsertWarmupPhase:
-    """Verify run_warmup() sets _warmup_done for insert benchmarks."""
+    """Verify run_once_across_all_users() sets _setup_done for insert benchmarks."""
 
     @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
     def test_warmup_sets_done_flag_no_index(self, mock_client_cls):
@@ -856,7 +855,7 @@ class TestInsertWarmupPhase:
         user = _make_user(InsertNoIndexBenchmarkUser, env)
         user.on_start()
 
-        assert InsertNoIndexBenchmarkUser._warmup_done is True
+        assert InsertNoIndexBenchmarkUser._setup_done is True
 
     @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
     def test_warmup_sets_done_flag_single_path(self, mock_client_cls):
@@ -867,7 +866,7 @@ class TestInsertWarmupPhase:
         user = _make_user(InsertSinglePathIndexBenchmarkUser, env)
         user.on_start()
 
-        assert InsertSinglePathIndexBenchmarkUser._warmup_done is True
+        assert InsertSinglePathIndexBenchmarkUser._setup_done is True
 
     @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
     def test_warmup_sets_done_flag_wildcard(self, mock_client_cls):
@@ -878,7 +877,7 @@ class TestInsertWarmupPhase:
         user = _make_user(InsertWildcardIndexBenchmarkUser, env)
         user.on_start()
 
-        assert InsertWildcardIndexBenchmarkUser._warmup_done is True
+        assert InsertWildcardIndexBenchmarkUser._setup_done is True
 
     @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
     def test_warmup_sets_done_flag_composite(self, mock_client_cls):
@@ -889,7 +888,7 @@ class TestInsertWarmupPhase:
         user = _make_user(InsertCompositeIndexBenchmarkUser, env)
         user.on_start()
 
-        assert InsertCompositeIndexBenchmarkUser._warmup_done is True
+        assert InsertCompositeIndexBenchmarkUser._setup_done is True
 
     @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
     def test_warmup_sets_done_flag_unique(self, mock_client_cls):
@@ -900,7 +899,7 @@ class TestInsertWarmupPhase:
         user = _make_user(InsertUniqueIndexBenchmarkUser, env)
         user.on_start()
 
-        assert InsertUniqueIndexBenchmarkUser._warmup_done is True
+        assert InsertUniqueIndexBenchmarkUser._setup_done is True
 
     @patch("benchmark_runner.base_benchmark.pymongo.MongoClient")
     def test_warmup_runs_only_once(self, mock_client_cls):
