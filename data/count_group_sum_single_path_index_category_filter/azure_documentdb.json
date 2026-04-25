@@ -1,0 +1,40 @@
+{
+  "benchmark_name": "count_group_sum_single_path_index_category_filter",
+  "run_label": "group-sum-single-path-index-category-filter",
+  "database_engine": "azure_documentdb",
+  "users": 10,
+  "spawn_rate": 5,
+  "run_time": "60s",
+  "workload_params": {
+    "seed_docs": 1000000,
+    "data_generator": "standard",
+    "document_size": 256,
+    "drop_on_start": true,
+    "sharded": false,
+    "shard_key": "_id",
+    "indexSpec": {
+      "category": 1
+    },
+    "match_filter": {
+      "category": "A"
+    }
+  },
+  "operations": [
+    {
+      "timestamp": "2026-04-25T01:54:07.875866+00:00",
+      "name": "group_sum",
+      "num_requests": 793,
+      "num_failures": 0,
+      "requests_per_sec": 13.2,
+      "response_time_ms": {
+        "min": 151.5,
+        "max": 1085.2,
+        "avg": 726.0,
+        "p50": 720.0,
+        "p90": 840.0,
+        "p95": 890.0,
+        "p99": 1000.0
+      }
+    }
+  ]
+}

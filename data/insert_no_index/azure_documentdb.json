@@ -1,0 +1,52 @@
+{
+  "benchmark_name": "insert_no_index",
+  "run_label": "no-index",
+  "database_engine": "azure_documentdb",
+  "users": 10,
+  "spawn_rate": 5,
+  "run_time": "60s",
+  "workload_params": {
+    "data_generator": "standard",
+    "document_size": 256,
+    "batch_size": 100,
+    "drop_on_start": true,
+    "sharded": false,
+    "shard_key": "_id",
+    "insert_one_weight": 3,
+    "insert_many_weight": 1
+  },
+  "operations": [
+    {
+      "timestamp": "2026-04-25T01:44:20.093457+00:00",
+      "name": "insert_one",
+      "num_requests": 7887,
+      "num_failures": 0,
+      "requests_per_sec": 131.5,
+      "response_time_ms": {
+        "min": 44.7,
+        "max": 560.9,
+        "avg": 50.0,
+        "p50": 49.0,
+        "p90": 52.0,
+        "p95": 53.0,
+        "p99": 56.0
+      }
+    },
+    {
+      "timestamp": "2026-04-25T01:44:20.093457+00:00",
+      "name": "insert_many",
+      "num_requests": 2686,
+      "num_failures": 0,
+      "requests_per_sec": 44.8,
+      "response_time_ms": {
+        "min": 46.8,
+        "max": 267.2,
+        "avg": 51.6,
+        "p50": 51.0,
+        "p90": 54.0,
+        "p95": 55.0,
+        "p99": 64.0
+      }
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "benchmark_name": "count_group_sum_single_path_index",
+  "run_label": "group-sum-single-path-index",
+  "database_engine": "azure_documentdb",
+  "users": 10,
+  "spawn_rate": 5,
+  "run_time": "60s",
+  "workload_params": {
+    "seed_docs": 1000000,
+    "data_generator": "standard",
+    "document_size": 256,
+    "drop_on_start": true,
+    "sharded": false,
+    "shard_key": "_id",
+    "indexSpec": {
+      "category": 1
+    }
+  },
+  "operations": [
+    {
+      "timestamp": "2026-04-25T01:51:32.782670+00:00",
+      "name": "group_sum",
+      "num_requests": 467,
+      "num_failures": 0,
+      "requests_per_sec": 7.8,
+      "response_time_ms": {
+        "min": 128.1,
+        "max": 1670.8,
+        "avg": 1243.2,
+        "p50": 1300.0,
+        "p90": 1500.0,
+        "p95": 1500.0,
+        "p99": 1600.0
+      }
+    }
+  ]
+}
