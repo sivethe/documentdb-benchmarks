@@ -1,0 +1,47 @@
+# Pipeline configuration template for the GitHub Actions benchmark workflow.
+#
+# Used by .github/workflows/benchmark.yml. The workflow copies this file
+# to deploy/pipeline-ci.config and injects engine connection strings from
+# GitHub Secrets under [database_engines]. Do NOT commit real secrets.
+#
+# This template intentionally has an EMPTY [database_engines] section so
+# the workflow can append entries to it. New entries MUST be inserted
+# under that header (not appended at EOF, which would land them inside
+# [benchmarks]).
+
+# --- Global settings ---
+cpu=2
+memory=4g
+results_dir=./results
+extra_args=
+
+# Locust concurrency overrides for CI runs. Keep these short so a full
+# pipeline finishes inside a reasonable workflow budget.
+users=10
+spawn_rate=5
+run_time=60s
+
+# --- Docker / ACI sections (unused by run-devcontainer.sh) ---
+[docker]
+network=auto
+skip_build=true
+
+[aci]
+resource_group=
+location=
+acr_name=
+cleanup=true
+
+# Database engines to benchmark against.
+# Populated at runtime by the workflow from GitHub Secrets.
+[database_engines]
+
+# Benchmark configs to run, one per line. Paths are relative to config/.
+[benchmarks]
+insert/insert_no_index.yaml
+insert/insert_single_path_index.yaml
+insert/insert_composite_index.yaml
+insert/insert_unique_index.yaml
+insert/insert_wildcard_index.yaml
+count/no_filter/count_group_sum_single_path_index.yaml
+count/category_filter/count_group_sum_single_path_index.yaml
