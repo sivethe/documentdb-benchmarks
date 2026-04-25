@@ -42,7 +42,7 @@ class InsertUniqueIndexBenchmarkUser(MongoUser):
         if self.get_param("drop_on_start", True):
             self.collection.drop()
         self._setup_sharding()
-        self.create_indexes({"createdAt": 1}, name="idx_createdAt_unique", unique=True)
+        self.create_indexes({"uniqueString": 1}, name="idx_uniqueString_unique", unique=True)
         self._wait_for_index_builds()
         self._capture_indexes()
 
