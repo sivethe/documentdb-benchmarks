@@ -1,0 +1,191 @@
+# Benchmark Pipeline
+#
+# Runs the benchmark suite against remote database engines on a schedule
+# and publishes structured JSON results to the gh-pages branch for the
+# dashboard.
+#
+# Required GitHub Secrets:
+#   AZURE_DOCUMENTDB_URL  - Azure Cosmos DB (DocumentDB API) connection string
+#
+# To add a new engine: add an entry in the "Generate pipeline config" step
+# and document the secret here.
+---
+name: Benchmark Pipeline
+
+on:
+  schedule:
+    # Nightly at 02:00 UTC
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      benchmarks:
+        description: >-
+          Optional comma-separated benchmark configs (relative to config/).
+          Leave empty to run the full suite from pipeline-ci.config.template.
+        required: false
+        default: ""
+
+# Only one benchmark run at a time to avoid contention on gh-pages commits.
+concurrency:
+  group: benchmark-pipeline
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # needed to push to gh-pages
+
+jobs:
+  benchmark:
+    name: Run benchmarks and publish results
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+
+    steps:
+      # ------------------------------------------------------------------
+      # 1. Checkout the repo at the workflow's commit
+      # ------------------------------------------------------------------
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ------------------------------------------------------------------
+      # 2. Python toolchain
+      # ------------------------------------------------------------------
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev]'
+
+      # ------------------------------------------------------------------
+      # 3. Generate pipeline config
+      #    Inject engine connection strings from GitHub Secrets under the
+      #    [database_engines] section (NOT at EOF, which would land them
+      #    inside [benchmarks]).
+      # ------------------------------------------------------------------
+      - name: Generate pipeline config
+        env:
+          AZURE_DOCUMENTDB_URL: ${{ secrets.AZURE_DOCUMENTDB_URL }}
+          BENCHMARKS_OVERRIDE: ${{ github.event.inputs.benchmarks }}
+        run: |
+          set -euo pipefail
+          template=deploy/pipeline-ci.config.template
+          out=deploy/pipeline-ci.config
+
+          if [[ ! -f "$template" ]]; then
+            echo "ERROR: $template not found" >&2
+            exit 1
+          fi
+
+          engine_lines=""
+          if [[ -n "${AZURE_DOCUMENTDB_URL:-}" ]]; then
+            engine_lines+="azure_documentdb=${AZURE_DOCUMENTDB_URL}"$'\n'
+          fi
+
+          if [[ -z "$engine_lines" ]]; then
+            echo "ERROR: no engine connection strings provided via secrets" >&2
+            exit 1
+          fi
+
+          # Insert engine_lines immediately after the [database_engines] header.
+          awk -v lines="$engine_lines" '
+            { print }
+            /^\[database_engines\]$/ { printf "%s", lines }
+          ' "$template" > "$out"
+
+          # Optional override: replace the [benchmarks] section with the
+          # comma-separated list from workflow_dispatch input.
+          if [[ -n "${BENCHMARKS_OVERRIDE:-}" ]]; then
+            awk -v list="$BENCHMARKS_OVERRIDE" '
+              BEGIN { skip = 0 }
+              /^\[benchmarks\]$/ {
+                print
+                n = split(list, parts, ",")
+                for (i = 1; i <= n; i++) {
+                  gsub(/^[ \t]+|[ \t]+$/, "", parts[i])
+                  if (parts[i] != "") print parts[i]
+                }
+                skip = 1
+                next
+              }
+              /^\[/ { skip = 0 }
+              { if (!skip) print }
+            ' "$out" > "$out.tmp" && mv "$out.tmp" "$out"
+          fi
+
+          # Echo config with credentials masked.
+          echo "----- pipeline-ci.config -----"
+          grep -v "=mongodb" "$out" || true
+          echo "------------------------------"
+
+      # ------------------------------------------------------------------
+      # 4. Run benchmarks
+      # ------------------------------------------------------------------
+      - name: Run benchmarks
+        run: ./deploy/run-devcontainer.sh deploy/pipeline-ci.config
+
+      # ------------------------------------------------------------------
+      # 5. Locate the latest results run directory
+      # ------------------------------------------------------------------
+      - name: Find latest results dir
+        id: results
+        run: |
+          set -euo pipefail
+          latest=$(ls -1d results/*/ | sort | tail -1)
+          if [[ -z "$latest" ]]; then
+            echo "ERROR: no results directory found" >&2
+            exit 1
+          fi
+          echo "dir=${latest%/}" >> "$GITHUB_OUTPUT"
+          echo "Latest run: ${latest%/}"
+
+      # ------------------------------------------------------------------
+      # 6. Checkout gh-pages branch (into a separate directory)
+      # ------------------------------------------------------------------
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages
+
+      # ------------------------------------------------------------------
+      # 7. Publish results
+      # ------------------------------------------------------------------
+      - name: Publish results to data/
+        run: |
+          mkdir -p gh-pages/data
+          python deploy/publish_results.py \
+            --results-dir "${{ steps.results.outputs.dir }}" \
+            --output-dir gh-pages/data
+
+      # ------------------------------------------------------------------
+      # 8. Commit and push to gh-pages
+      # ------------------------------------------------------------------
+      - name: Commit and push to gh-pages
+        run: |
+          set -euo pipefail
+          cd gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            timestamp=$(date -u +"%Y-%m-%d %H:%M UTC")
+            git commit -m "Update benchmark data — ${timestamp}"
+            git push
+          fi
+
+      # ------------------------------------------------------------------
+      # 9. Upload results as workflow artifact (debugging aid)
+      # ------------------------------------------------------------------
+      - name: Upload results artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: ${{ steps.results.outputs.dir }}
+          retention-days: 30
