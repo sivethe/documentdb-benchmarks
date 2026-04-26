@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DocumentDB Benchmarks</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+</head>
+<body>
+    <header>
+        <nav class="navbar">
+            <h1 class="site-title">DocumentDB Benchmarks</h1>
+            <ul class="nav-links">
+                <li><a href="#/graphs" class="nav-link" data-page="graphs">graphs</a></li>
+                <li><a href="#/compare" class="nav-link" data-page="compare">compare</a></li>
+                <li><a href="#/dashboard" class="nav-link" data-page="dashboard">dashboard</a></li>
+                <li><a href="#/status" class="nav-link" data-page="status">status</a></li>
+                <li><a href="#/help" class="nav-link" data-page="help">help</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main id="app">
+        <div id="loading" class="loading">Loading...</div>
+        <div id="error" class="error" style="display: none;"></div>
+        <div id="content"></div>
+    </main>
+
+    <footer>
+        <p>
+            Data updated via CI pipeline. 
+            <a href="https://github.com/your-org/documentdb-benchmarks" target="_blank">View source</a>
+        </p>
+    </footer>
+
+    <script src="js/charts.js"></script>
+    <script src="js/compare.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
