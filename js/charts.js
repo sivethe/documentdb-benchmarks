@@ -154,26 +154,58 @@ function formatMetricName(metric) {
 
 /**
  * Extract metric value from a result entry
- * @param {Object} entry - Result entry from JSON data
+ * @param {Object} entry - Result entry from JSON data (either old format with summary or operation object)
  * @param {string} metric - Metric name to extract
  * @returns {number|null} - Metric value or null if not found
  */
 function extractMetricValue(entry, metric) {
-    if (!entry || !entry.summary) return null;
+    if (!entry) return null;
 
-    // Check if metric is in summary directly
-    if (entry.summary[metric] !== undefined) {
-        return entry.summary[metric];
+    // New format: operation object with response_time_ms
+    if (entry.response_time_ms) {
+        const rtms = entry.response_time_ms;
+        
+        // Direct metric mappings for new format
+        if (metric === 'avg_response_time_ms' && rtms.avg !== undefined) {
+            return rtms.avg;
+        }
+        if (metric === 'min_response_time_ms' && rtms.min !== undefined) {
+            return rtms.min;
+        }
+        if (metric === 'max_response_time_ms' && rtms.max !== undefined) {
+            return rtms.max;
+        }
+        if (metric === 'requests_per_sec' && entry.requests_per_sec !== undefined) {
+            return entry.requests_per_sec;
+        }
+        
+        // Percentiles
+        if (rtms[metric] !== undefined) {
+            return rtms[metric];
+        }
+        
+        // Calculate failure rate
+        if (metric === 'failure_rate' && entry.num_requests > 0) {
+            return (entry.num_failures / entry.num_requests) * 100;
+        }
     }
 
-    // Check if metric is in percentiles
-    if (entry.summary.percentiles_ms && entry.summary.percentiles_ms[metric] !== undefined) {
-        return entry.summary.percentiles_ms[metric];
-    }
+    // Old format: summary object (for backward compatibility)
+    if (entry.summary) {
+        // Check if metric is in summary directly
+        if (entry.summary[metric] !== undefined) {
+            return entry.summary[metric];
+        }
 
-    // Calculate failure rate if requested
-    if (metric === 'failure_rate' && entry.summary.total_requests > 0) {
-        return (entry.summary.total_failures / entry.summary.total_requests) * 100;
+        // Check if metric is in percentiles
+        if (entry.summary.percentiles_ms && entry.summary.percentiles_ms[metric] !== undefined) {
+            return entry.summary.percentiles_ms[metric];
+        }
+
+        // Calculate failure rate if requested
+        if (metric === 'failure_rate' && entry.summary.total_requests > 0) {
+            return (entry.summary.total_failures / entry.summary.total_requests) * 100;
+        }
     }
 
     return null;

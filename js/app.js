@@ -144,7 +144,7 @@ function extractEnginesList(benchmarks) {
  * Load benchmark data for a specific benchmark and engine
  * @param {string} benchmarkName - Name of the benchmark
  * @param {string} engineName - Name of the engine
- * @returns {Promise<Array>} - Array of result entries
+ * @returns {Promise<Array>} - Array of result entries (operations)
  */
 async function loadBenchmarkData(benchmarkName, engineName) {
     // Check cache
@@ -160,7 +160,21 @@ async function loadBenchmarkData(benchmarkName, engineName) {
             console.warn(`Failed to load ${url}: ${response.status}`);
             return [];
         }
-        const data = await response.json();
+        const rawData = await response.json();
+        
+        // Transform data format:
+        // If it's an object with operations array, use the operations
+        // If it's already an array, use it as-is (old format)
+        let data;
+        if (Array.isArray(rawData)) {
+            data = rawData; // Old format: array of runs
+        } else if (rawData.operations && Array.isArray(rawData.operations)) {
+            data = rawData.operations; // New format: object with operations array
+        } else {
+            console.warn(`Unexpected data format for ${benchmarkName}/${engineName}`);
+            return [];
+        }
+        
         AppState.benchmarkData[cacheKey] = data;
         return data;
     } catch (error) {
