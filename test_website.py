@@ -68,8 +68,16 @@ def main():
             with open(base_dir / "data" / "index.json", 'r') as f:
                 index_data = json.load(f)
             
-            benchmarks = index_data.get("benchmarks", [])
-            engines = index_data.get("engines", [])
+            # Extract benchmarks and engines from the nested structure
+            benchmarks_dict = index_data.get("benchmarks", {})
+            benchmarks = list(benchmarks_dict.keys())
+            
+            # Extract unique engines
+            engine_set = set()
+            for benchmark in benchmarks_dict.values():
+                if "engines" in benchmark:
+                    engine_set.update(benchmark["engines"].keys())
+            engines = sorted(engine_set)
             
             print(f"\n📊 Found {len(benchmarks)} benchmarks and {len(engines)} engines")
             
@@ -86,19 +94,31 @@ def main():
                     with open(data_file, 'r') as f:
                         data = json.load(f)
                     
+                    # Check for either array format (historical data) or object format (single run)
                     if isinstance(data, list) and len(data) > 0:
                         entry = data[0]
                         required_fields = ["timestamp", "benchmark_name", "database_engine", "summary"]
                         all_present = all(field in entry for field in required_fields)
                         
                         if all_present:
-                            print(f"✅ PASS: Data structure has required fields")
+                            print(f"✅ PASS: Data structure has required fields (array format)")
                             tests_passed += 1
                         else:
                             print(f"❌ FAIL: Data structure missing required fields")
                             tests_failed += 1
+                    elif isinstance(data, dict):
+                        # Single run format - check for basic fields
+                        required_fields = ["benchmark_name", "database_engine", "operations"]
+                        all_present = all(field in data for field in required_fields)
+                        
+                        if all_present:
+                            print(f"✅ PASS: Data structure has required fields (single run format)")
+                            tests_passed += 1
+                        else:
+                            print(f"❌ FAIL: Data structure missing required fields: {[f for f in required_fields if f not in data]}")
+                            tests_failed += 1
                     else:
-                        print(f"❌ FAIL: Data file is not a non-empty array")
+                        print(f"❌ FAIL: Data file is neither a non-empty array nor a valid object")
                         tests_failed += 1
                 else:
                     tests_failed += 1
