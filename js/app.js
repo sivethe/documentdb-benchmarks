@@ -273,7 +273,14 @@ async function renderGraphsPage() {
 
     // Add event listeners
     document.getElementById('refresh-btn').addEventListener('click', () => {
-        renderGraphsPage();
+        // Get current date values from inputs
+        const startDateInput = document.getElementById('date-start').value;
+        const endDateInput = document.getElementById('date-end').value;
+        const currentStartDate = startDateInput ? new Date(startDateInput) : startDate;
+        const currentEndDate = endDateInput ? new Date(endDateInput) : endDate;
+        
+        // Re-render charts with current date range
+        renderGraphCharts(selectedBenchmark, selectedMetric, currentStartDate, currentEndDate);
     });
 
     document.getElementById('benchmark-select').addEventListener('change', (e) => {
