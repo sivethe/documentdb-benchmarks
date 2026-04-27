@@ -24,7 +24,7 @@
       ]
     }
   },
-  "postCreateCommand": "pip install -e '.[dev]' && git config core.hooksPath .githooks",
+  "postCreateCommand": "sudo rm -rf documentdb_benchmarks.egg-info && pip install -e '.[dev]' && git config core.hooksPath .githooks",
   "postStartCommand": "bash deploy/post-startup.sh",
   "forwardPorts": [
     8089
@@ -37,5 +37,7 @@
   },
   "containerEnv": {
     "MONGODB_URL": "mongodb://mongodb:27017"
-  }
+  },
+  "remoteUser": "vscode",
+  "updateRemoteUserUID": true
 }

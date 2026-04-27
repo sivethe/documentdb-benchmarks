@@ -2,13 +2,22 @@ FROM python:3.12-bookworm
 
 # Install common dev tools
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git gnupg curl \
+    && apt-get install -y --no-install-recommends git gnupg curl sudo \
     && curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | gpg --dearmor -o /usr/share/keyrings/mongodb-archive-keyring.gpg \
     && echo "deb [signed-by=/usr/share/keyrings/mongodb-archive-keyring.gpg] https://repo.mongodb.org/apt/debian bookworm/mongodb-org/7.0 main" \
        > /etc/apt/sources.list.d/mongodb-org-7.0.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends mongodb-mongosh \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user so files created in the container match host ownership.
+ARG USERNAME=vscode
+ARG USER_UID=1000
+ARG USER_GID=$USER_UID
+RUN groupadd --gid $USER_GID $USERNAME \
+    && useradd --uid $USER_UID --gid $USER_GID -m $USERNAME \
+    && echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/$USERNAME \
+    && chmod 0440 /etc/sudoers.d/$USERNAME
 
 # Pre-install Python deps so rebuilds are faster (layer cache).
 # Copy only pyproject.toml first — this layer is cached until
