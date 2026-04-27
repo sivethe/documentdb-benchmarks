@@ -216,21 +216,24 @@ async function renderGraphsPage() {
 
     // Get query parameters
     const urlParams = new URLSearchParams(window.location.hash.split('?')[1] || '');
-    const selectedBenchmark = urlParams.get('benchmark');
+    const selectedBenchmarks = urlParams.getAll('benchmark');
     const selectedMetric = urlParams.get('metric') || 'avg_response_time_ms';
 
-    // Get date range
-    const { startDate, endDate } = getDefaultDateRange();
+    // Get date range from URL parameters or use defaults
+    const { startDate: defaultStartDate, endDate: defaultEndDate } = getDefaultDateRange();
+    const urlStartDate = urlParams.get('startDate');
+    const urlEndDate = urlParams.get('endDate');
+    
+    const startDate = urlStartDate ? new Date(urlStartDate) : defaultStartDate;
+    const endDate = urlEndDate ? new Date(urlEndDate) : defaultEndDate;
     const startDateStr = formatDateForInput(startDate);
     const endDateStr = formatDateForInput(endDate);
 
     // Build controls HTML
     const benchmarks = AppState.indexData.benchmarks || [];
-    const benchmarkOptions = ['<option value="">All Benchmarks</option>']
-        .concat(benchmarks.map(b => 
-            `<option value="${b}" ${b === selectedBenchmark ? 'selected' : ''}>${b}</option>`
-        ))
-        .join('');
+    const benchmarkOptions = benchmarks.map(b => 
+        `<option value="${b}" ${selectedBenchmarks.includes(b) ? 'selected' : ''}>${b}</option>`
+    ).join('');
 
     const metricOptions = [
         { value: 'avg_response_time_ms', label: 'Avg Response Time' },
@@ -257,8 +260,9 @@ async function renderGraphsPage() {
                 <select id="metric-select">${metricOptions}</select>
             </div>
             <div class="control-group">
-                <label for="benchmark-select">Benchmark:</label>
-                <select id="benchmark-select">${benchmarkOptions}</select>
+                <label for="benchmark-select">Benchmarks:</label>
+                <select id="benchmark-select" multiple size="5">${benchmarkOptions}</select>
+                <small style="display: block; margin-top: 4px; color: #666;">Hold Ctrl/Cmd to select multiple</small>
             </div>
             <div class="control-group">
                 <button id="refresh-btn">Refresh</button>
@@ -279,39 +283,89 @@ async function renderGraphsPage() {
         const currentStartDate = startDateInput ? new Date(startDateInput) : startDate;
         const currentEndDate = endDateInput ? new Date(endDateInput) : endDate;
         
+        // Get currently selected benchmarks
+        const benchmarkSelect = document.getElementById('benchmark-select');
+        const currentBenchmarks = Array.from(benchmarkSelect.selectedOptions).map(opt => opt.value);
+        
         // Re-render charts with current date range
-        renderGraphCharts(selectedBenchmark, selectedMetric, currentStartDate, currentEndDate);
+        renderGraphCharts(currentBenchmarks, selectedMetric, currentStartDate, currentEndDate);
     });
 
     document.getElementById('benchmark-select').addEventListener('change', (e) => {
-        const newBenchmark = e.target.value;
-        const newHash = newBenchmark 
-            ? `#/graphs?benchmark=${newBenchmark}&metric=${selectedMetric}`
-            : `#/graphs?metric=${selectedMetric}`;
-        window.location.hash = newHash;
+        const benchmarkSelect = e.target;
+        const selectedBenchmarks = Array.from(benchmarkSelect.selectedOptions).map(opt => opt.value);
+        const currentStartDate = document.getElementById('date-start').value;
+        const currentEndDate = document.getElementById('date-end').value;
+        
+        let params = new URLSearchParams();
+        params.set('metric', selectedMetric);
+        selectedBenchmarks.forEach(b => params.append('benchmark', b));
+        if (currentStartDate) params.set('startDate', currentStartDate);
+        if (currentEndDate) params.set('endDate', currentEndDate);
+        
+        window.location.hash = `#/graphs?${params.toString()}`;
     });
 
     document.getElementById('metric-select').addEventListener('change', (e) => {
         const newMetric = e.target.value;
-        const newHash = selectedBenchmark
-            ? `#/graphs?benchmark=${selectedBenchmark}&metric=${newMetric}`
-            : `#/graphs?metric=${newMetric}`;
-        window.location.hash = newHash;
+        const currentStartDate = document.getElementById('date-start').value;
+        const currentEndDate = document.getElementById('date-end').value;
+        const benchmarkSelect = document.getElementById('benchmark-select');
+        const currentBenchmarks = Array.from(benchmarkSelect.selectedOptions).map(opt => opt.value);
+        
+        let params = new URLSearchParams();
+        params.set('metric', newMetric);
+        currentBenchmarks.forEach(b => params.append('benchmark', b));
+        if (currentStartDate) params.set('startDate', currentStartDate);
+        if (currentEndDate) params.set('endDate', currentEndDate);
+        
+        window.location.hash = `#/graphs?${params.toString()}`;
+    });
+
+    // Add date input listeners to update URL
+    document.getElementById('date-start').addEventListener('change', (e) => {
+        const newStartDate = e.target.value;
+        const currentEndDate = document.getElementById('date-end').value;
+        const benchmarkSelect = document.getElementById('benchmark-select');
+        const currentBenchmarks = Array.from(benchmarkSelect.selectedOptions).map(opt => opt.value);
+        
+        let params = new URLSearchParams();
+        params.set('metric', selectedMetric);
+        currentBenchmarks.forEach(b => params.append('benchmark', b));
+        if (newStartDate) params.set('startDate', newStartDate);
+        if (currentEndDate) params.set('endDate', currentEndDate);
+        
+        window.location.hash = `#/graphs?${params.toString()}`;
+    });
+
+    document.getElementById('date-end').addEventListener('change', (e) => {
+        const newEndDate = e.target.value;
+        const currentStartDate = document.getElementById('date-start').value;
+        const benchmarkSelect = document.getElementById('benchmark-select');
+        const currentBenchmarks = Array.from(benchmarkSelect.selectedOptions).map(opt => opt.value);
+        
+        let params = new URLSearchParams();
+        params.set('metric', selectedMetric);
+        currentBenchmarks.forEach(b => params.append('benchmark', b));
+        if (currentStartDate) params.set('startDate', currentStartDate);
+        if (newEndDate) params.set('endDate', newEndDate);
+        
+        window.location.hash = `#/graphs?${params.toString()}`;
     });
 
     // Load and render charts
-    await renderGraphCharts(selectedBenchmark, selectedMetric, startDate, endDate);
+    await renderGraphCharts(selectedBenchmarks, selectedMetric, startDate, endDate);
 }
 
 /**
  * Render charts for the Graphs page
  */
-async function renderGraphCharts(selectedBenchmark, metric, startDate, endDate) {
+async function renderGraphCharts(selectedBenchmarks, metric, startDate, endDate) {
     const chartGrid = document.getElementById('chart-grid');
     chartGrid.innerHTML = '<p class="text-center">Loading charts...</p>';
 
-    const benchmarks = selectedBenchmark 
-        ? [selectedBenchmark]
+    const benchmarks = (selectedBenchmarks && selectedBenchmarks.length > 0)
+        ? selectedBenchmarks
         : AppState.indexData.benchmarks || [];
 
     if (benchmarks.length === 0) {
