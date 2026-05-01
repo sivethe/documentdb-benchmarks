@@ -1,0 +1,52 @@
+{
+  "benchmark_name": "insert_single_path_index",
+  "run_label": "single-path-index",
+  "database_engine": "azure_documentdb",
+  "users": 10,
+  "spawn_rate": 5,
+  "run_time": "60s",
+  "workload_params": {
+    "data_generator": "standard",
+    "document_size": 256,
+    "batch_size": 100,
+    "drop_on_start": true,
+    "sharded": false,
+    "shard_key": "_id",
+    "insert_one_weight": 3,
+    "insert_many_weight": 1
+  },
+  "operations": [
+    {
+      "timestamp": "2026-05-01T06:49:30.798844+00:00",
+      "name": "insert_many_singlePathIndex",
+      "num_requests": 9244,
+      "num_failures": 0,
+      "requests_per_sec": 153.9,
+      "response_time_ms": {
+        "min": 6.4,
+        "max": 225.6,
+        "avg": 13.1,
+        "p50": 12.0,
+        "p90": 19.0,
+        "p95": 23.0,
+        "p99": 33.0
+      }
+    },
+    {
+      "timestamp": "2026-05-01T06:49:30.798844+00:00",
+      "name": "insert_one_singlePathIndex",
+      "num_requests": 27187,
+      "num_failures": 0,
+      "requests_per_sec": 452.6,
+      "response_time_ms": {
+        "min": 2.4,
+        "max": 217.4,
+        "avg": 8.1,
+        "p50": 8.0,
+        "p90": 12.0,
+        "p95": 14.0,
+        "p99": 18.0
+      }
+    }
+  ]
+}

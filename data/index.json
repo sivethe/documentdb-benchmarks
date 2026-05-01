@@ -1,0 +1,75 @@
+{
+  "generated_at": "2026-05-01T06:57:58.225236+00:00",
+  "benchmarks": {
+    "count_group_sum_single_path_index": {
+      "engines": {
+        "azure_documentdb": {
+          "path": "count_group_sum_single_path_index/azure_documentdb.json",
+          "latest_timestamp": "2026-05-01T06:55:01.521581+00:00",
+          "run_count": 1,
+          "operation_count": 1
+        }
+      }
+    },
+    "count_group_sum_single_path_index_category_filter": {
+      "engines": {
+        "azure_documentdb": {
+          "path": "count_group_sum_single_path_index_category_filter/azure_documentdb.json",
+          "latest_timestamp": "2026-05-01T06:56:53.451087+00:00",
+          "run_count": 1,
+          "operation_count": 1
+        }
+      }
+    },
+    "insert_composite_index": {
+      "engines": {
+        "azure_documentdb": {
+          "path": "insert_composite_index/azure_documentdb.json",
+          "latest_timestamp": "2026-05-01T06:50:41.472982+00:00",
+          "run_count": 1,
+          "operation_count": 2
+        }
+      }
+    },
+    "insert_no_index": {
+      "engines": {
+        "azure_documentdb": {
+          "path": "insert_no_index/azure_documentdb.json",
+          "latest_timestamp": "2026-05-01T06:48:20.110330+00:00",
+          "run_count": 1,
+          "operation_count": 2
+        }
+      }
+    },
+    "insert_single_path_index": {
+      "engines": {
+        "azure_documentdb": {
+          "path": "insert_single_path_index/azure_documentdb.json",
+          "latest_timestamp": "2026-05-01T06:49:30.798844+00:00",
+          "run_count": 1,
+          "operation_count": 2
+        }
+      }
+    },
+    "insert_unique_index": {
+      "engines": {
+        "azure_documentdb": {
+          "path": "insert_unique_index/azure_documentdb.json",
+          "latest_timestamp": "2026-05-01T06:51:53.129827+00:00",
+          "run_count": 1,
+          "operation_count": 2
+        }
+      }
+    },
+    "insert_wildcard_index": {
+      "engines": {
+        "azure_documentdb": {
+          "path": "insert_wildcard_index/azure_documentdb.json",
+          "latest_timestamp": "2026-05-01T06:53:04.816863+00:00",
+          "run_count": 1,
+          "operation_count": 2
+        }
+      }
+    }
+  }
+}

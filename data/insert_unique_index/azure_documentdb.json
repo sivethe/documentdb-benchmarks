@@ -1,0 +1,52 @@
+{
+  "benchmark_name": "insert_unique_index",
+  "run_label": "unique-index",
+  "database_engine": "azure_documentdb",
+  "users": 10,
+  "spawn_rate": 5,
+  "run_time": "60s",
+  "workload_params": {
+    "data_generator": "standard",
+    "document_size": 256,
+    "batch_size": 100,
+    "drop_on_start": true,
+    "sharded": false,
+    "shard_key": "_id",
+    "insert_one_weight": 3,
+    "insert_many_weight": 1
+  },
+  "operations": [
+    {
+      "timestamp": "2026-05-01T06:51:53.129827+00:00",
+      "name": "insert_one_uniqueIndex",
+      "num_requests": 22708,
+      "num_failures": 0,
+      "requests_per_sec": 378.5,
+      "response_time_ms": {
+        "min": 2.7,
+        "max": 224.1,
+        "avg": 9.4,
+        "p50": 9.0,
+        "p90": 14.0,
+        "p95": 16.0,
+        "p99": 22.0
+      }
+    },
+    {
+      "timestamp": "2026-05-01T06:51:53.129827+00:00",
+      "name": "insert_many_uniqueIndex",
+      "num_requests": 7509,
+      "num_failures": 0,
+      "requests_per_sec": 125.2,
+      "response_time_ms": {
+        "min": 7.7,
+        "max": 246.5,
+        "avg": 23.8,
+        "p50": 21.0,
+        "p90": 37.0,
+        "p95": 45.0,
+        "p99": 63.0
+      }
+    }
+  ]
+}
