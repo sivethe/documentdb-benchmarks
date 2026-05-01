@@ -1,8 +1,11 @@
 # Benchmark Pipeline
 #
-# Runs the benchmark suite against remote database engines on a schedule
-# and publishes structured JSON results to the gh-pages branch for the
-# dashboard.
+# Reference-only workflow for manually running the benchmark suite against
+# remote database engines. Because this benchmark measures client-to-database
+# latency, production benchmark runs should execute on a self-hosted GitHub
+# runner in the same region as the database under test to avoid public-runner
+# network latency and variability. This is not currently possible with public
+# GitHub-hosted runners.
 #
 # Required GitHub Secrets:
 #   AZURE_DOCUMENTDB_URL  - Azure Cosmos DB (DocumentDB API) connection string
@@ -13,9 +16,6 @@
 name: Benchmark Pipeline
 
 on:
-  schedule:
-    # Hourly at the top of the hour
-    - cron: "0 * * * *"
   workflow_dispatch:
     inputs:
       benchmarks:
@@ -24,18 +24,25 @@ on:
           Leave empty to run the full suite from pipeline-ci.config.template.
         required: false
         default: ""
+      push_to_gh_pages:
+        description: >-
+          Publish generated benchmark data to the gh-pages branch.
+        required: false
+        type: boolean
+        default: false
 
-# Only one benchmark run at a time to avoid contention on gh-pages commits.
+# Only one benchmark run at a time to avoid contention if gh-pages publishing
+# is enabled.
 concurrency:
   group: benchmark-pipeline
   cancel-in-progress: false
 
 permissions:
-  contents: write   # needed to push to gh-pages
+  contents: write   # required only when push_to_gh_pages is enabled
 
 jobs:
   benchmark:
-    name: Run benchmarks and publish results
+    name: Run reference benchmarks
     runs-on: ubuntu-latest
     timeout-minutes: 240
 
@@ -146,6 +153,7 @@ jobs:
       # 6. Checkout gh-pages branch (into a separate directory)
       # ------------------------------------------------------------------
       - name: Checkout gh-pages
+        if: ${{ inputs.push_to_gh_pages }}
         uses: actions/checkout@v4
         with:
           ref: gh-pages
@@ -155,6 +163,7 @@ jobs:
       # 7. Publish results
       # ------------------------------------------------------------------
       - name: Publish results to data/
+        if: ${{ inputs.push_to_gh_pages }}
         run: |
           mkdir -p gh-pages/data
           python deploy/publish_results.py \
@@ -165,6 +174,7 @@ jobs:
       # 8. Commit and push to gh-pages
       # ------------------------------------------------------------------
       - name: Commit and push to gh-pages
+        if: ${{ inputs.push_to_gh_pages }}
         run: |
           set -euo pipefail
           cd gh-pages
