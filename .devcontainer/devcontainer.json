@@ -1,0 +1,25 @@
+{
+  "name": "documentdb-benchmarks-web",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
+  "forwardPorts": [8000],
+  "portsAttributes": {
+    "8000": {
+      "label": "DocumentDB Benchmarks Website",
+      "onAutoForward": "openPreview"
+    }
+  },
+  "postStartCommand": "bash .devcontainer/start-server.sh",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "files.exclude": {
+          "**/__pycache__": true
+        }
+      },
+      "extensions": [
+        "ms-python.python"
+      ]
+    }
+  }
+}

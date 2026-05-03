@@ -122,6 +122,16 @@ Append-only array of result entries (newest last):
 
 ## Local Development
 
+### Using the Dev Container
+
+Open the repository in the VS Code Dev Container to get a ready-to-run local environment:
+
+1. Reopen the folder in container
+2. Wait for the container `postStartCommand` to launch the local web server
+3. Open the forwarded port for http://localhost:8000
+
+The container starts `python3 -m http.server 8000` automatically when the dev container starts.
+
 ### Quick Start
 
 Serve the website locally using Python's built-in HTTP server:

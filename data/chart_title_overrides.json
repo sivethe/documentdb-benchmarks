@@ -1,0 +1,51 @@
+{
+  "benchmarks": {
+    "count_group_sum_single_path_index": {
+      "title": "Grouped Sum Query with Single-Path Index",
+      "operations": {
+        "group_sum": "Grouped Sum Query with Single-Path Index"
+      }
+    },
+    "count_group_sum_single_path_index_category_filter": {
+      "title": "Grouped Sum Query with Category Filter and Single-Path Index",
+      "operations": {
+        "group_sum": "Grouped Sum Query with Category Filter and Single-Path Index"
+      }
+    },
+    "insert_composite_index": {
+      "title": "Insert Benchmark with Composite Index",
+      "operations": {
+        "insert_one_compositeIndex": "Single-Document Insert with Composite Index",
+        "insert_many_compositeIndex": "Batch Insert with Composite Index"
+      }
+    },
+    "insert_no_index": {
+      "title": "Insert Benchmark without Secondary Index",
+      "operations": {
+        "insert_one": "Single-Document Insert without Secondary Index",
+        "insert_many": "Batch Insert without Secondary Index"
+      }
+    },
+    "insert_single_path_index": {
+      "title": "Insert Benchmark with Single-Path Index",
+      "operations": {
+        "insert_one_singlePathIndex": "Single-Document Insert with Single-Path Index",
+        "insert_many_singlePathIndex": "Batch Insert with Single-Path Index"
+      }
+    },
+    "insert_unique_index": {
+      "title": "Insert Benchmark with Unique Index",
+      "operations": {
+        "insert_one_uniqueIndex": "Single-Document Insert with Unique Index",
+        "insert_many_uniqueIndex": "Batch Insert with Unique Index"
+      }
+    },
+    "insert_wildcard_index": {
+      "title": "Insert Benchmark with Wildcard Index",
+      "operations": {
+        "insert_one_wildcardIndex": "Single-Document Insert with Wildcard Index",
+        "insert_many_wildcardIndex": "Batch Insert with Wildcard Index"
+      }
+    }
+  }
+}

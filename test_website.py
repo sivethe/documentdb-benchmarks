@@ -62,6 +62,11 @@ def main():
     # Test data directory structure
     if test_json_valid(base_dir / "data" / "index.json", "Index JSON"):
         tests_passed += 1
+
+        if test_json_valid(base_dir / "data" / "chart_title_overrides.json", "Chart title overrides JSON"):
+            tests_passed += 1
+        else:
+            tests_failed += 1
         
         # Load index and test benchmark data files
         try:

@@ -6,6 +6,7 @@
 const AppState = {
     indexData: null,
     benchmarkData: {}, // Cache: { benchmark_name: { engine_name: [...data] } }
+    chartTitleOverrides: { benchmarks: {} },
     currentPage: 'graphs',
     charts: [], // Track active Chart.js instances for cleanup
 };
@@ -29,9 +30,12 @@ async function init() {
     window.addEventListener('hashchange', handleRouteChange);
 
     try {
-        // Load index data
+        // Load startup data
         showLoading();
-        await loadIndexData();
+        await Promise.all([
+            loadIndexData(),
+            loadChartTitleOverrides()
+        ]);
         hideLoading();
 
         // Handle initial route
@@ -39,6 +43,57 @@ async function init() {
     } catch (error) {
         showError('Failed to load benchmark index: ' + error.message);
     }
+}
+
+/**
+ * Load chart title overrides from the local JSON file.
+ */
+async function loadChartTitleOverrides() {
+    try {
+        const response = await fetch('data/chart_title_overrides.json');
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const rawData = await response.json();
+        AppState.chartTitleOverrides = normalizeChartTitleOverrides(rawData);
+        console.log('Loaded chart title overrides:', AppState.chartTitleOverrides);
+    } catch (error) {
+        console.warn('Failed to load chart title overrides, using defaults:', error);
+        AppState.chartTitleOverrides = { benchmarks: {} };
+    }
+}
+
+/**
+ * Normalize chart title override data into the expected structure.
+ * @param {Object|null} rawData - Raw JSON data
+ * @returns {{benchmarks: Object}} - Normalized overrides
+ */
+function normalizeChartTitleOverrides(rawData) {
+    if (!rawData || typeof rawData !== 'object') {
+        return { benchmarks: {} };
+    }
+
+    const benchmarks = rawData.benchmarks;
+    if (!benchmarks || typeof benchmarks !== 'object' || Array.isArray(benchmarks)) {
+        return { benchmarks: {} };
+    }
+
+    return { benchmarks };
+}
+
+/**
+ * Escape HTML special characters for safe inline markup.
+ * @param {string} value - Raw text
+ * @returns {string} - Escaped text
+ */
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 /**
@@ -224,10 +279,10 @@ async function renderGraphsPage() {
     const urlStartDate = urlParams.get('startDate');
     const urlEndDate = urlParams.get('endDate');
     
-    const startDate = urlStartDate ? new Date(urlStartDate) : defaultStartDate;
-    const endDate = urlEndDate ? new Date(urlEndDate) : defaultEndDate;
-    const startDateStr = formatDateForInput(startDate);
-    const endDateStr = formatDateForInput(endDate);
+    const startDate = parseDateInputValue(urlStartDate) || defaultStartDate;
+    const endDate = parseDateInputValue(urlEndDate, true) || defaultEndDate;
+    const startDateStr = urlStartDate || formatDateForInput(startDate);
+    const endDateStr = urlEndDate || formatDateForInput(endDate);
 
     // Build controls HTML
     const benchmarks = AppState.indexData.benchmarks || [];
@@ -280,15 +335,18 @@ async function renderGraphsPage() {
         // Get current date values from inputs
         const startDateInput = document.getElementById('date-start').value;
         const endDateInput = document.getElementById('date-end').value;
-        const currentStartDate = startDateInput ? new Date(startDateInput) : startDate;
-        const currentEndDate = endDateInput ? new Date(endDateInput) : endDate;
         
         // Get currently selected benchmarks
         const benchmarkSelect = document.getElementById('benchmark-select');
         const currentBenchmarks = Array.from(benchmarkSelect.selectedOptions).map(opt => opt.value);
         
         // Re-render charts with current date range
-        renderGraphCharts(currentBenchmarks, selectedMetric, currentStartDate, currentEndDate);
+        renderGraphCharts(
+            currentBenchmarks,
+            selectedMetric,
+            startDateInput || formatDateForInput(startDate),
+            endDateInput || formatDateForInput(endDate)
+        );
     });
 
     document.getElementById('benchmark-select').addEventListener('change', (e) => {
@@ -354,7 +412,12 @@ async function renderGraphsPage() {
     });
 
     // Load and render charts
-    await renderGraphCharts(selectedBenchmarks, selectedMetric, startDate, endDate);
+    await renderGraphCharts(
+        selectedBenchmarks,
+        selectedMetric,
+        urlStartDate || startDateStr,
+        urlEndDate || endDateStr
+    );
 }
 
 /**
@@ -377,39 +440,96 @@ async function renderGraphCharts(selectedBenchmarks, metric, startDate, endDate)
 
     // Load data for all benchmarks
     for (const benchmarkName of benchmarks) {
-        const chartContainer = document.createElement('div');
-        chartContainer.className = 'chart-container';
-        chartContainer.innerHTML = `
-            <h3>${benchmarkName}</h3>
-            <canvas id="chart-${benchmarkName}"></canvas>
-        `;
-        chartGrid.appendChild(chartContainer);
-
         // Load data for all engines
         const allData = await loadBenchmarkDataAllEngines(benchmarkName);
 
-        // Prepare chart data
-        const chartData = {};
-        for (const [engineName, entries] of Object.entries(allData)) {
-            if (!entries || entries.length === 0) continue;
+        const seriesNames = Array.from(
+            new Set(
+                Object.values(allData)
+                    .flat()
+                    .map(entry => entry.name)
+                    .filter(Boolean)
+            )
+        );
 
-            const filtered = filterByDateRange(entries, startDate, endDate);
-            chartData[engineName] = filtered.map(entry => ({
-                timestamp: entry.timestamp,
-                value: extractMetricValue(entry, metric)
-            })).filter(point => point.value !== null);
+        const benchmarkSeries = seriesNames.length > 0 ? seriesNames : [null];
+
+        for (const seriesName of benchmarkSeries) {
+            const chartData = {};
+
+            for (const [engineName, entries] of Object.entries(allData)) {
+                if (!entries || entries.length === 0) continue;
+
+                const filtered = filterByDateRange(entries, startDate, endDate)
+                    .filter(entry => !seriesName || entry.name === seriesName);
+
+                chartData[engineName] = filtered.map(entry => ({
+                    timestamp: entry.timestamp,
+                    value: extractMetricValue(entry, metric)
+                })).filter(point => point.value !== null);
+            }
+
+            if (Object.values(chartData).every(points => points.length === 0)) {
+                continue;
+            }
+
+            const chartTitle = resolveChartTitle(benchmarkName, seriesName);
+            const chartId = `chart-${toSafeChartId(benchmarkName)}${seriesName ? `-${toSafeChartId(seriesName)}` : ''}`;
+
+            const chartContainer = document.createElement('div');
+            chartContainer.className = 'chart-container';
+            chartContainer.innerHTML = `
+                <h3>${escapeHtml(chartTitle)}</h3>
+                <canvas id="${chartId}"></canvas>
+            `;
+            chartGrid.appendChild(chartContainer);
+
+            const canvas = document.getElementById(chartId);
+            const chart = createTimeSeriesChart(
+                canvas,
+                chartData,
+                formatMetricName(metric),
+                chartTitle
+            );
+            AppState.charts.push(chart);
+        }
+    }
+}
+
+/**
+ * Convert a benchmark or series name into a DOM-safe chart id fragment.
+ * @param {string} value - Source name
+ * @returns {string} - Safe id fragment
+ */
+function toSafeChartId(value) {
+    return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+/**
+ * Resolve the display title for a benchmark chart.
+ * @param {string} benchmarkName - Benchmark identifier
+ * @param {string|null} seriesName - Operation name, if present
+ * @returns {string} - Chart title
+ */
+function resolveChartTitle(benchmarkName, seriesName) {
+    const benchmarkOverrides = AppState.chartTitleOverrides.benchmarks[benchmarkName];
+    const operationOverride = seriesName ? benchmarkOverrides?.operations?.[seriesName] : null;
+
+    if (operationOverride) {
+        if (typeof operationOverride === 'string') {
+            return operationOverride;
         }
 
-        // Render chart
-        const canvas = document.getElementById(`chart-${benchmarkName}`);
-        const chart = createTimeSeriesChart(
-            canvas,
-            chartData,
-            formatMetricName(metric),
-            benchmarkName
-        );
-        AppState.charts.push(chart);
+        return operationOverride.title || `${benchmarkName} - ${formatSeriesName(seriesName)}`;
     }
+
+    if (!seriesName && benchmarkOverrides?.title) {
+        return benchmarkOverrides.title;
+    }
+
+    return seriesName
+        ? `${benchmarkName} - ${formatSeriesName(seriesName)}`
+        : benchmarkName;
 }
 
 /**

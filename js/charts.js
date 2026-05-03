@@ -73,17 +73,6 @@ function createTimeSeriesChart(canvas, data, metric, title) {
 
     const options = {
         ...DEFAULT_CHART_OPTIONS,
-        plugins: {
-            ...DEFAULT_CHART_OPTIONS.plugins,
-            title: {
-                display: true,
-                text: title,
-                font: {
-                    size: 14,
-                    weight: 'bold'
-                }
-            }
-        },
         scales: {
             ...DEFAULT_CHART_OPTIONS.scales,
             y: {
@@ -153,6 +142,23 @@ function formatMetricName(metric) {
 }
 
 /**
+ * Format an operation series name for display.
+ * @param {string} seriesName - Raw operation name (e.g., 'insert_many_wildcardIndex')
+ * @returns {string} - Formatted label
+ */
+function formatSeriesName(seriesName) {
+    if (!seriesName) return '';
+
+    return seriesName
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/_/g, ' ')
+        .split(' ')
+        .filter(Boolean)
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
+}
+
+/**
  * Extract metric value from a result entry
  * @param {Object} entry - Result entry from JSON data (either old format with summary or operation object)
  * @param {string} metric - Metric name to extract
@@ -219,12 +225,15 @@ function extractMetricValue(entry, metric) {
  * @returns {Array} - Filtered array
  */
 function filterByDateRange(data, startDate, endDate) {
-    if (!startDate && !endDate) return data;
+    const resolvedStartDate = normalizeDateBoundary(startDate);
+    const resolvedEndDate = normalizeDateBoundary(endDate, true);
+
+    if (!resolvedStartDate && !resolvedEndDate) return data;
     
     return data.filter(entry => {
         const entryDate = new Date(entry.timestamp);
-        if (startDate && entryDate < startDate) return false;
-        if (endDate && entryDate > endDate) return false;
+        if (resolvedStartDate && entryDate < resolvedStartDate) return false;
+        if (resolvedEndDate && entryDate > resolvedEndDate) return false;
         return true;
     });
 }
@@ -247,6 +256,59 @@ function getDefaultDateRange() {
  */
 function formatDateForInput(date) {
     return date.toISOString().split('T')[0];
+}
+
+/**
+ * Parse a YYYY-MM-DD date input value into a local Date.
+ * @param {string} value - Date string from an input[type="date"]
+ * @param {boolean} endOfDay - Whether to return the end of the selected day
+ * @returns {Date|null} - Parsed Date or null for empty/invalid input
+ */
+function parseDateInputValue(value, endOfDay = false) {
+    if (!value) return null;
+
+    const [year, month, day] = value.split('-').map(Number);
+    if ([year, month, day].some(Number.isNaN)) {
+        return null;
+    }
+
+    if (endOfDay) {
+        return new Date(year, month - 1, day, 23, 59, 59, 999);
+    }
+
+    return new Date(year, month - 1, day, 0, 0, 0, 0);
+}
+
+/**
+ * Normalize a date-like value into the start or end of its local calendar day.
+ * @param {Date|string|null} value - Date-like value to normalize
+ * @param {boolean} endOfDay - Whether to normalize to the end of the day
+ * @returns {Date|null} - Normalized Date or null for empty/invalid values
+ */
+function normalizeDateBoundary(value, endOfDay = false) {
+    if (!value) return null;
+
+    let normalizedDate;
+
+    if (value instanceof Date) {
+        normalizedDate = new Date(value.getTime());
+    } else if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        normalizedDate = parseDateInputValue(value, endOfDay);
+    } else {
+        normalizedDate = new Date(value);
+    }
+
+    if (!(normalizedDate instanceof Date) || Number.isNaN(normalizedDate.getTime())) {
+        return null;
+    }
+
+    if (endOfDay) {
+        normalizedDate.setHours(23, 59, 59, 999);
+    } else {
+        normalizedDate.setHours(0, 0, 0, 0);
+    }
+
+    return normalizedDate;
 }
 
 /**
