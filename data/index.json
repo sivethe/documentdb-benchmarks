@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-05-05T02:10:33.424077+00:00",
+  "generated_at": "2026-05-05T03:11:27.388325+00:00",
   "benchmarks": {
     "count_group_sum_single_path_index": {
       "engines": {
         "azure_documentdb": {
           "path": "count_group_sum_single_path_index/azure_documentdb.json",
-          "latest_timestamp": "2026-05-05T02:07:31.733597+00:00",
-          "run_count": 93,
-          "operation_count": 93
+          "latest_timestamp": "2026-05-05T03:08:31.608166+00:00",
+          "run_count": 94,
+          "operation_count": 94
         }
       }
     },
@@ -15,9 +15,9 @@
       "engines": {
         "azure_documentdb": {
           "path": "count_group_sum_single_path_index_category_filter/azure_documentdb.json",
-          "latest_timestamp": "2026-05-05T02:09:27.243973+00:00",
-          "run_count": 93,
-          "operation_count": 93
+          "latest_timestamp": "2026-05-05T03:10:23.118901+00:00",
+          "run_count": 94,
+          "operation_count": 94
         }
       }
     },
@@ -25,9 +25,9 @@
       "engines": {
         "azure_documentdb": {
           "path": "insert_composite_index/azure_documentdb.json",
-          "latest_timestamp": "2026-05-05T02:03:12.556536+00:00",
-          "run_count": 93,
-          "operation_count": 186
+          "latest_timestamp": "2026-05-05T03:04:11.603910+00:00",
+          "run_count": 94,
+          "operation_count": 188
         }
       }
     },
@@ -35,9 +35,9 @@
       "engines": {
         "azure_documentdb": {
           "path": "insert_no_index/azure_documentdb.json",
-          "latest_timestamp": "2026-05-05T02:00:49.190385+00:00",
-          "run_count": 93,
-          "operation_count": 186
+          "latest_timestamp": "2026-05-05T03:01:50.255902+00:00",
+          "run_count": 94,
+          "operation_count": 188
         }
       }
     },
@@ -45,9 +45,9 @@
       "engines": {
         "azure_documentdb": {
           "path": "insert_single_path_index/azure_documentdb.json",
-          "latest_timestamp": "2026-05-05T02:02:00.862656+00:00",
-          "run_count": 93,
-          "operation_count": 186
+          "latest_timestamp": "2026-05-05T03:03:00.921618+00:00",
+          "run_count": 94,
+          "operation_count": 188
         }
       }
     },
@@ -55,9 +55,9 @@
       "engines": {
         "azure_documentdb": {
           "path": "insert_unique_index/azure_documentdb.json",
-          "latest_timestamp": "2026-05-05T02:04:24.239422+00:00",
-          "run_count": 93,
-          "operation_count": 186
+          "latest_timestamp": "2026-05-05T03:05:22.273315+00:00",
+          "run_count": 94,
+          "operation_count": 188
         }
       }
     },
@@ -65,9 +65,9 @@
       "engines": {
         "azure_documentdb": {
           "path": "insert_wildcard_index/azure_documentdb.json",
-          "latest_timestamp": "2026-05-05T02:05:34.926504+00:00",
-          "run_count": 93,
-          "operation_count": 186
+          "latest_timestamp": "2026-05-05T03:06:32.973159+00:00",
+          "run_count": 94,
+          "operation_count": 188
         }
       }
     }
