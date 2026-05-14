@@ -10127,6 +10127,38 @@
         "p95": 23.0,
         "p99": 36.0
       }
+    },
+    {
+      "timestamp": "2026-05-14T10:06:55.033539+00:00",
+      "name": "insert_one_wildcardIndex",
+      "num_requests": 8297,
+      "num_failures": 0,
+      "requests_per_sec": 138.3,
+      "response_time_ms": {
+        "min": 3.8,
+        "max": 108.5,
+        "avg": 12.5,
+        "p50": 11.0,
+        "p90": 19.0,
+        "p95": 23.0,
+        "p99": 32.0
+      }
+    },
+    {
+      "timestamp": "2026-05-14T10:06:55.033539+00:00",
+      "name": "insert_many_wildcardIndex",
+      "num_requests": 2835,
+      "num_failures": 0,
+      "requests_per_sec": 47.3,
+      "response_time_ms": {
+        "min": 39.0,
+        "max": 557.6,
+        "avg": 149.6,
+        "p50": 140.0,
+        "p90": 210.0,
+        "p95": 250.0,
+        "p99": 380.0
+      }
     }
   ]
 }
