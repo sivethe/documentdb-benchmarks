@@ -17967,6 +17967,38 @@
         "p95": 56.0,
         "p99": 82.0
       }
+    },
+    {
+      "timestamp": "2026-05-24T15:05:04.986537+00:00",
+      "name": "insert_one_uniqueIndex",
+      "num_requests": 20245,
+      "num_failures": 0,
+      "requests_per_sec": 337.5,
+      "response_time_ms": {
+        "min": 3.1,
+        "max": 99.0,
+        "avg": 10.9,
+        "p50": 10.0,
+        "p90": 16.0,
+        "p95": 19.0,
+        "p99": 24.0
+      }
+    },
+    {
+      "timestamp": "2026-05-24T15:05:04.986537+00:00",
+      "name": "insert_many_uniqueIndex",
+      "num_requests": 6803,
+      "num_failures": 0,
+      "requests_per_sec": 113.4,
+      "response_time_ms": {
+        "min": 9.4,
+        "max": 137.6,
+        "avg": 25.7,
+        "p50": 22.0,
+        "p90": 42.0,
+        "p95": 52.0,
+        "p99": 72.0
+      }
     }
   ]
 }
