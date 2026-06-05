@@ -26703,6 +26703,38 @@
         "p95": 31.0,
         "p99": 47.0
       }
+    },
+    {
+      "timestamp": "2026-06-05T00:06:14.218408+00:00",
+      "name": "insert_one_compositeIndex",
+      "num_requests": 23163,
+      "num_failures": 0,
+      "requests_per_sec": 385.5,
+      "response_time_ms": {
+        "min": 2.6,
+        "max": 234.3,
+        "avg": 10.0,
+        "p50": 9.0,
+        "p90": 15.0,
+        "p95": 17.0,
+        "p99": 23.0
+      }
+    },
+    {
+      "timestamp": "2026-06-05T00:06:14.218408+00:00",
+      "name": "insert_many_compositeIndex",
+      "num_requests": 7832,
+      "num_failures": 0,
+      "requests_per_sec": 130.4,
+      "response_time_ms": {
+        "min": 6.6,
+        "max": 110.1,
+        "avg": 16.7,
+        "p50": 15.0,
+        "p90": 25.0,
+        "p95": 31.0,
+        "p99": 48.0
+      }
     }
   ]
 }
