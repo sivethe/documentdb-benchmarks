@@ -38383,6 +38383,38 @@
         "p95": 65.0,
         "p99": 94.0
       }
+    },
+    {
+      "timestamp": "2026-06-20T05:05:22.695823+00:00",
+      "name": "insert_many_uniqueIndex",
+      "num_requests": 6577,
+      "num_failures": 0,
+      "requests_per_sec": 109.6,
+      "response_time_ms": {
+        "min": 9.5,
+        "max": 143.5,
+        "avg": 27.9,
+        "p50": 22.0,
+        "p90": 50.0,
+        "p95": 64.0,
+        "p99": 92.0
+      }
+    },
+    {
+      "timestamp": "2026-06-20T05:05:22.695823+00:00",
+      "name": "insert_one_uniqueIndex",
+      "num_requests": 19655,
+      "num_failures": 0,
+      "requests_per_sec": 327.6,
+      "response_time_ms": {
+        "min": 2.6,
+        "max": 118.5,
+        "avg": 11.1,
+        "p50": 10.0,
+        "p90": 17.0,
+        "p95": 19.0,
+        "p99": 28.0
+      }
     }
   ]
 }
