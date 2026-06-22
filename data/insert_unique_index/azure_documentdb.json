@@ -39983,6 +39983,38 @@
         "p95": 53.0,
         "p99": 70.0
       }
+    },
+    {
+      "timestamp": "2026-06-22T07:04:56.598778+00:00",
+      "name": "insert_one_uniqueIndex",
+      "num_requests": 20126,
+      "num_failures": 0,
+      "requests_per_sec": 335.1,
+      "response_time_ms": {
+        "min": 3.0,
+        "max": 151.4,
+        "avg": 10.7,
+        "p50": 10.0,
+        "p90": 16.0,
+        "p95": 18.0,
+        "p99": 27.0
+      }
+    },
+    {
+      "timestamp": "2026-06-22T07:04:56.598778+00:00",
+      "name": "insert_many_uniqueIndex",
+      "num_requests": 6755,
+      "num_failures": 0,
+      "requests_per_sec": 112.5,
+      "response_time_ms": {
+        "min": 10.0,
+        "max": 282.0,
+        "avg": 29.7,
+        "p50": 25.0,
+        "p90": 48.0,
+        "p95": 60.0,
+        "p99": 98.0
+      }
     }
   ]
 }
