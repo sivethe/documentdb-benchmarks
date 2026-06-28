@@ -44783,6 +44783,38 @@
         "p95": 59.0,
         "p99": 94.0
       }
+    },
+    {
+      "timestamp": "2026-06-28T13:05:16.487908+00:00",
+      "name": "insert_one_uniqueIndex",
+      "num_requests": 20112,
+      "num_failures": 0,
+      "requests_per_sec": 335.2,
+      "response_time_ms": {
+        "min": 2.9,
+        "max": 1060.1,
+        "avg": 10.8,
+        "p50": 10.0,
+        "p90": 16.0,
+        "p95": 19.0,
+        "p99": 27.0
+      }
+    },
+    {
+      "timestamp": "2026-06-28T13:05:16.487908+00:00",
+      "name": "insert_many_uniqueIndex",
+      "num_requests": 6772,
+      "num_failures": 0,
+      "requests_per_sec": 112.9,
+      "response_time_ms": {
+        "min": 9.7,
+        "max": 188.1,
+        "avg": 27.1,
+        "p50": 22.0,
+        "p90": 47.0,
+        "p95": 62.0,
+        "p99": 91.0
+      }
     }
   ]
 }
