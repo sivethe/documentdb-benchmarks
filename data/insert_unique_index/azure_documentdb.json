@@ -49103,6 +49103,38 @@
         "p95": 50.0,
         "p99": 75.0
       }
+    },
+    {
+      "timestamp": "2026-07-04T04:06:14.770803+00:00",
+      "name": "insert_one_uniqueIndex",
+      "num_requests": 20555,
+      "num_failures": 0,
+      "requests_per_sec": 342.1,
+      "response_time_ms": {
+        "min": 2.8,
+        "max": 93.1,
+        "avg": 10.7,
+        "p50": 10.0,
+        "p90": 16.0,
+        "p95": 18.0,
+        "p99": 25.0
+      }
+    },
+    {
+      "timestamp": "2026-07-04T04:06:14.770803+00:00",
+      "name": "insert_many_uniqueIndex",
+      "num_requests": 6765,
+      "num_failures": 0,
+      "requests_per_sec": 112.6,
+      "response_time_ms": {
+        "min": 9.6,
+        "max": 233.9,
+        "avg": 26.5,
+        "p50": 22.0,
+        "p90": 43.0,
+        "p95": 54.0,
+        "p99": 87.0
+      }
     }
   ]
 }
