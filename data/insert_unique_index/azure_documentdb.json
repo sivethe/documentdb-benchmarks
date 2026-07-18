@@ -60463,6 +60463,38 @@
         "p95": 18.0,
         "p99": 29.0
       }
+    },
+    {
+      "timestamp": "2026-07-18T23:09:45.104020+00:00",
+      "name": "insert_one_uniqueIndex",
+      "num_requests": 19985,
+      "num_failures": 0,
+      "requests_per_sec": 333.1,
+      "response_time_ms": {
+        "min": 2.8,
+        "max": 227.9,
+        "avg": 10.5,
+        "p50": 9.0,
+        "p90": 16.0,
+        "p95": 19.0,
+        "p99": 28.0
+      }
+    },
+    {
+      "timestamp": "2026-07-18T23:09:45.104020+00:00",
+      "name": "insert_many_uniqueIndex",
+      "num_requests": 6641,
+      "num_failures": 0,
+      "requests_per_sec": 110.7,
+      "response_time_ms": {
+        "min": 9.1,
+        "max": 550.9,
+        "avg": 28.8,
+        "p50": 22.0,
+        "p90": 50.0,
+        "p95": 65.0,
+        "p99": 110.0
+      }
     }
   ]
 }
