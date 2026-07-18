@@ -60143,6 +60143,38 @@
         "p95": 29.0,
         "p99": 42.0
       }
+    },
+    {
+      "timestamp": "2026-07-18T13:03:46.959707+00:00",
+      "name": "insert_one_compositeIndex",
+      "num_requests": 25496,
+      "num_failures": 0,
+      "requests_per_sec": 424.5,
+      "response_time_ms": {
+        "min": 2.8,
+        "max": 230.1,
+        "avg": 9.0,
+        "p50": 8.0,
+        "p90": 13.0,
+        "p95": 16.0,
+        "p99": 22.0
+      }
+    },
+    {
+      "timestamp": "2026-07-18T13:03:46.959707+00:00",
+      "name": "insert_many_compositeIndex",
+      "num_requests": 8652,
+      "num_failures": 0,
+      "requests_per_sec": 144.1,
+      "response_time_ms": {
+        "min": 6.8,
+        "max": 105.0,
+        "avg": 15.2,
+        "p50": 13.0,
+        "p90": 24.0,
+        "p95": 30.0,
+        "p99": 43.0
+      }
     }
   ]
 }
