@@ -60559,6 +60559,38 @@
         "p95": 260.0,
         "p99": 400.0
       }
+    },
+    {
+      "timestamp": "2026-07-19T02:06:26.242644+00:00",
+      "name": "insert_one_wildcardIndex",
+      "num_requests": 8049,
+      "num_failures": 0,
+      "requests_per_sec": 134.2,
+      "response_time_ms": {
+        "min": 4.2,
+        "max": 184.4,
+        "avg": 13.2,
+        "p50": 12.0,
+        "p90": 20.0,
+        "p95": 23.0,
+        "p99": 35.0
+      }
+    },
+    {
+      "timestamp": "2026-07-19T02:06:26.242644+00:00",
+      "name": "insert_many_wildcardIndex",
+      "num_requests": 2605,
+      "num_failures": 0,
+      "requests_per_sec": 43.4,
+      "response_time_ms": {
+        "min": 37.8,
+        "max": 643.2,
+        "avg": 162.8,
+        "p50": 140.0,
+        "p90": 250.0,
+        "p95": 330.0,
+        "p99": 500.0
+      }
     }
   ]
 }
